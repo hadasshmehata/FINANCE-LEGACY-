@@ -36,7 +36,7 @@ export const FraudDetector: React.FC = () => {
   const [currentResult, setCurrentResult] = useState<FraudAnalysisResult>(
     fraudScans[0] || {
       id: 'scan_init',
-      inputText: defaultScamText,
+      inputContent: defaultScamText,
       riskLevel: 'HIGH',
       riskScore: 92,
       suspiciousIndicators: [
@@ -87,7 +87,7 @@ export const FraudDetector: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12 animate-in fade-in duration-300">
-      
+
       {/* Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#10283D] p-5 sm:p-6 rounded-3xl border border-[#1E3A5F] shadow-card">
         <div>
@@ -120,7 +120,7 @@ export const FraudDetector: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
+
         {/* Left Column: Input Form */}
         <div className="lg:col-span-6 bg-[#10283D] border border-[#1E3A5F] rounded-3xl p-5 sm:p-6 shadow-card space-y-4">
           <div className="flex items-center justify-between border-b border-[#1E3A5F] pb-3">
@@ -203,22 +203,20 @@ export const FraudDetector: React.FC = () => {
               <div className="space-y-4">
                 {/* Risk Level Card */}
                 <div
-                  className={`p-4 rounded-2xl border text-center flex flex-col items-center justify-center ${
-                    currentResult.riskLevel === 'HIGH'
+                  className={`p-4 rounded-2xl border text-center flex flex-col items-center justify-center ${currentResult.riskLevel === 'HIGH'
                       ? 'bg-red-500/10 border-red-500/50 text-red-400 shadow-glow-emerald/10'
                       : currentResult.riskLevel === 'MEDIUM'
-                      ? 'bg-amber-500/10 border-amber-500/50 text-amber-400'
-                      : 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400'
-                  }`}
+                        ? 'bg-amber-500/10 border-amber-500/50 text-amber-400'
+                        : 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400'
+                    }`}
                 >
                   <div
-                    className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 ${
-                      currentResult.riskLevel === 'HIGH'
+                    className={`w-12 h-12 rounded-xl flex items-center justify-center mb-2 ${currentResult.riskLevel === 'HIGH'
                         ? 'bg-red-500/20 text-red-400'
                         : currentResult.riskLevel === 'MEDIUM'
-                        ? 'bg-amber-500/20 text-amber-400'
-                        : 'bg-emerald-500/20 text-emerald-400'
-                    }`}
+                          ? 'bg-amber-500/20 text-amber-400'
+                          : 'bg-emerald-500/20 text-emerald-400'
+                      }`}
                   >
                     <AlertTriangle className="w-6 h-6 animate-bounce" />
                   </div>

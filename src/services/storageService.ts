@@ -110,21 +110,23 @@ export const createEmptyProfileData = (user: UserProfile): UserProfileData => {
     fraudScans: [
       {
         id: `frd_init_${Date.now()}`,
-        inputContent: 'You have won ₹1,00,000! Click here to claim: http://fake-link.com',
+        inputContent:
+          'URGENT: Outstanding unclaimed insurance settlement of ₹2,85,000 pending under Policy #908123. To release payment to your bank savings account immediately, deposit mandatory processing stamp duty fee of ₹2,500 to UPI ID govt-settlement@upi or call +91-98765-43210.',
         riskLevel: 'HIGH',
-        riskScore: 94,
+        riskScore: 92,
         suspiciousIndicators: [
-          'Urgent action required',
-          'External suspicious link',
-          'Guaranteed unrealistic reward',
-          'Unsolicited prize claim',
+          'Demands upfront advance processing fee before releasing funds',
+          'Uses urgent, time-pressured language to induce panic',
+          'Requests money transfer to personal or unverified UPI handle',
+          'Official financial institutions deduct fees from proceeds rather than asking for UPI pre-deposits',
         ],
         explanation:
-          'This message uses classic phishing urgency and suspicious domain hosting to harvest personal/banking credentials under the guise of an unclaimed cash lottery.',
+          'This message exhibits all signature patterns of an Advance Fee Recovery Scam (Section 66D IT Act). Legitimate regulators (RBI, IRDAI, EPFO) never solicit processing fees or stamp duties via personal UPI handles.',
         safeActions: [
-          'Do not click any provided links',
-          'Report and block the sender',
-          'Never share banking OTP or card CVV',
+          'Never transfer any advance registration or processing fee to release financial claims',
+          'Block the sender number and do not dial the provided helpline',
+          'Report the incident to the National Cyber Crime Helpline at 1930',
+          'Verify legitimate claim status directly on the official insurer or bank portal',
         ],
         analyzedAt: 'Preset sample',
       },
@@ -181,21 +183,23 @@ export const createDemoProfileData = (demo: DemoProfileData): UserProfileData =>
     fraudScans: [
       {
         id: `frd_demo_${Date.now()}`,
-        inputContent: 'You have won ₹1,00,000! Click here to claim: http://fake-link.com',
+        inputContent:
+          'URGENT: Outstanding unclaimed insurance settlement of ₹2,85,000 pending under Policy #908123. To release payment to your bank savings account immediately, deposit mandatory processing stamp duty fee of ₹2,500 to UPI ID govt-settlement@upi or call +91-98765-43210.',
         riskLevel: 'HIGH',
-        riskScore: 94,
+        riskScore: 92,
         suspiciousIndicators: [
-          'Urgent action required',
-          'External suspicious link',
-          'Guaranteed unrealistic reward',
-          'Unsolicited prize claim',
+          'Demands upfront advance processing fee before releasing funds',
+          'Uses urgent, time-pressured language to induce panic',
+          'Requests money transfer to personal or unverified UPI handle',
+          'Official financial institutions deduct fees from proceeds rather than asking for UPI pre-deposits',
         ],
         explanation:
-          'This message uses classic phishing urgency and suspicious domain hosting to harvest personal/banking credentials under the guise of an unclaimed cash lottery.',
+          'This message exhibits all signature patterns of an Advance Fee Recovery Scam (Section 66D IT Act). Legitimate regulators (RBI, IRDAI, EPFO) never solicit processing fees or stamp duties via personal UPI handles.',
         safeActions: [
-          'Do not click any provided links',
-          'Report and block the sender',
-          'Never share banking OTP or card CVV',
+          'Never transfer any advance registration or processing fee to release financial claims',
+          'Block the sender number and do not dial the provided helpline',
+          'Report the incident to the National Cyber Crime Helpline at 1930',
+          'Verify legitimate claim status directly on the official insurer or bank portal',
         ],
         analyzedAt: 'Today, 10:15 AM',
       },

@@ -6,10 +6,12 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    allowedHosts: true,
   },
   preview: {
     port: parseInt(process.env.PORT || '4173', 10),
     host: true,
+    allowedHosts: true,
   },
   build: {
     outDir: 'dist',

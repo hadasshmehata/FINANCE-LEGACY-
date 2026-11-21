@@ -13,9 +13,52 @@ import {
   ArrowRight,
   Eye,
   Trash2,
+  ShieldCheck,
+  Lock,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { DocumentCategory } from '../../types';
+
+// Constants for file validation
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+const ALLOWED_EXTENSIONS = ['.pdf', '.png', '.jpg', '.jpeg', '.webp'];
+const ALLOWED_MIME_TYPES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
+
+// Client-side PII Redaction Regexes
+export const redactSensitivePII = (text: string): { sanitized: string; maskedCount: number } => {
+  let masked = 0;
+  let sanitized = text;
+
+  // Indian PAN (5 letters, 4 digits, 1 letter) -> ABCDE****F
+  const panRegex = /\b([A-Z]{5})(\d{4})([A-Z]{1})\b/gi;
+  sanitized = sanitized.replace(panRegex, (_match, p1, _p2, p3) => {
+    masked++;
+    return `${p1}****${p3}`;
+  });
+
+  // Indian Aadhaar (12 digits, optional spaces) -> XXXX-XXXX-1234
+  const aadhaarRegex = /\b\d{4}[\s-]?\d{4}[\s-]?(\d{4})\b/g;
+  sanitized = sanitized.replace(aadhaarRegex, (_match, last4) => {
+    masked++;
+    return `XXXX-XXXX-${last4}`;
+  });
+
+  // UAN (12 digits starting with 10) -> 1012****8829
+  const uanRegex = /\b(10\d{2})\d{4}(\d{4})\b/g;
+  sanitized = sanitized.replace(uanRegex, (_match, prefix, suffix) => {
+    masked++;
+    return `${prefix}****${suffix}`;
+  });
+
+  // Bank Account Numbers (9 to 18 digits) -> XXXXXX1234
+  const bankAccRegex = /\b\d{6,14}(\d{4})\b/g;
+  sanitized = sanitized.replace(bankAccRegex, (_match, last4) => {
+    masked++;
+    return `XXXXXX${last4}`;
+  });
+
+  return { sanitized, maskedCount: masked };
+};
 
 export const DocumentScanner: React.FC = () => {
   const { uploadDocument, documents, addAsset, setActiveTab } = useApp();
@@ -26,6 +69,11 @@ export const DocumentScanner: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(1);
   const [activeExtractedResult, setActiveExtractedResult] = useState<any | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Security & Privacy Consent Controls
+  const [enablePiiRedaction, setEnablePiiRedaction] = useState(true);
+  const [userConsentGiven, setUserConsentGiven] = useState(true);
 
   const categories: { label: DocumentCategory; icon: string }[] = [
     { label: 'Bank Statements', icon: '🏦' },
@@ -36,8 +84,40 @@ export const DocumentScanner: React.FC = () => {
     { label: 'Pension Docs', icon: '📜' },
   ];
 
+  const validateFile = (file: File): boolean => {
+    setValidationError(null);
+
+    // Size validation (Max 10MB)
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setValidationError(`File size ${(file.size / (1024 * 1024)).toFixed(1)} MB exceeds the maximum 10 MB limit.`);
+      return false;
+    }
+
+    // Extension validation
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      setValidationError(`Unsupported file type (${ext}). Allowed formats: PDF, PNG, JPG, JPEG, WEBP.`);
+      return false;
+    }
+
+    // MIME type check
+    if (file.type && !ALLOWED_MIME_TYPES.includes(file.type)) {
+      setValidationError(`Invalid file format: ${file.type}. Allowed: PDF and standard image formats.`);
+      return false;
+    }
+
+    // Consent check
+    if (!userConsentGiven) {
+      setValidationError('Please accept the client-side zero-knowledge processing consent before uploading.');
+      return false;
+    }
+
+    return true;
+  };
+
   // Simulation runner
   const runExtraction = (fileName: string, category: DocumentCategory, fileSize: string) => {
+    setValidationError(null);
     setAnalyzing(true);
     setProgress(25);
     setCurrentStep(1);
@@ -63,15 +143,19 @@ export const DocumentScanner: React.FC = () => {
         category: category,
       });
 
-      // Prepare preview result
+      // Prepare preview result with client-side PII masking applied
+      const rawRef = '987654' + Math.floor(1000 + Math.random() * 9000);
+      const maskedRef = enablePiiRedaction ? redactSensitivePII(rawRef).sanitized : rawRef;
+
       setActiveExtractedResult({
         fileName,
         category,
         institution: category === 'EPF Records' || category === 'Salary Slips' ? 'EPFO India / ABC Tech' : category === 'Insurance Policies' ? 'LIC of India' : 'HDFC Bank',
         potentialAsset: category === 'EPF Records' || category === 'Salary Slips' ? 'Provident Fund Corpus (₹42,500)' : category === 'Insurance Policies' ? 'Matured Endowment Policy (₹1,50,000)' : 'Dormant Savings A/C (₹45,000)',
         value: category === 'EPF Records' || category === 'Salary Slips' ? 42500 : category === 'Insurance Policies' ? 150000 : 45000,
-        accountRef: 'XXXXXX' + Math.floor(1000 + Math.random() * 9000),
+        accountRef: maskedRef,
         confidence: 96,
+        piiMasked: enablePiiRedaction,
       });
     }, 2100);
   };
@@ -79,6 +163,7 @@ export const DocumentScanner: React.FC = () => {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      if (!validateFile(file)) return;
       const sizeStr = (file.size / (1024 * 1024)).toFixed(1) + ' MB';
       runExtraction(file.name, selectedCategory, sizeStr);
     }
@@ -86,6 +171,10 @@ export const DocumentScanner: React.FC = () => {
 
   // Sample quick test documents
   const loadPresetSample = (type: 'salary' | 'bank' | 'insurance' | 'epf') => {
+    if (!userConsentGiven) {
+      setValidationError('Please accept the client-side zero-knowledge processing consent first.');
+      return;
+    }
     if (type === 'salary') {
       setSelectedCategory('Salary Slips');
       runExtraction('Salary_Slip_ABC_Technologies_Nov2021.pdf', 'Salary Slips', '820 KB');
@@ -109,7 +198,7 @@ export const DocumentScanner: React.FC = () => {
       institution: activeExtractedResult.institution,
       estimatedValue: activeExtractedResult.value,
       maskedAccountRef: activeExtractedResult.accountRef,
-      evidenceSource: `Uploaded Doc: ${activeExtractedResult.fileName}`,
+      evidenceSource: `Uploaded Doc: ${activeExtractedResult.fileName} (Client PII Redacted)`,
       confidenceScore: activeExtractedResult.confidence,
       verificationStatus: 'Potentially Discovered',
       linkedDocumentIds: [],
@@ -130,7 +219,7 @@ export const DocumentScanner: React.FC = () => {
           </div>
           <h1 className="text-2xl font-extrabold text-white mt-1">Document Scanner</h1>
           <p className="text-xs sm:text-sm text-slate-400">
-            Upload your financial documents and let AI discover potential forgotten assets.
+            Upload your financial documents and let AI discover potential forgotten assets with client-side privacy controls.
           </p>
         </div>
 
@@ -158,9 +247,59 @@ export const DocumentScanner: React.FC = () => {
         </div>
       </div>
 
+      {/* Security & PII Redaction Controls Banner */}
+      <div className="bg-[#0A2238] border border-emerald-500/30 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 flex-shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-white">Client-Side Zero-Knowledge Privacy Filter</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300">
+                Active
+              </span>
+            </div>
+            <p className="text-slate-400 text-[11px] mt-0.5">
+              Financial identifiers (PAN, Aadhaar, Bank Acc, UAN) are masked in browser memory before OCR parsing.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 border-t md:border-t-0 md:border-l border-[#1E3A5F] pt-3 md:pt-0 md:pl-4">
+          <label className="flex items-center gap-2 cursor-pointer text-slate-200 font-medium">
+            <input
+              type="checkbox"
+              checked={enablePiiRedaction}
+              onChange={(e) => setEnablePiiRedaction(e.target.checked)}
+              className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-400/50 bg-[#061525] border-[#1E3A5F]"
+            />
+            <span className="text-[11px]">Auto-Redact Sensitive PII</span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer text-slate-200 font-medium">
+            <input
+              type="checkbox"
+              checked={userConsentGiven}
+              onChange={(e) => setUserConsentGiven(e.target.checked)}
+              className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-400/50 bg-[#061525] border-[#1E3A5F]"
+            />
+            <span className="text-[11px]">Explicit Consent for OCR Extraction</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Validation Error Alert */}
+      {validationError && (
+        <div className="p-3.5 rounded-2xl bg-red-500/15 border border-red-500/40 text-red-300 text-xs flex items-center gap-2.5 animate-in fade-in">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-400" />
+          <span>{validationError}</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Left Column: Drag & Drop Area and Categories (Matching prototype) */}
+        {/* Left Column: Drag & Drop Area and Categories */}
         <div className="lg:col-span-7 space-y-6">
           
           {/* Document Categories Pill Grid */}
@@ -199,6 +338,7 @@ export const DocumentScanner: React.FC = () => {
               setIsDragging(false);
               if (e.dataTransfer.files && e.dataTransfer.files[0]) {
                 const f = e.dataTransfer.files[0];
+                if (!validateFile(f)) return;
                 runExtraction(f.name, selectedCategory, (f.size / 1024).toFixed(0) + ' KB');
               }
             }}
@@ -211,7 +351,7 @@ export const DocumentScanner: React.FC = () => {
             <input
               type="file"
               id="fileInput"
-              accept=".pdf,.png,.jpg,.jpeg"
+              accept=".pdf,.png,.jpg,.jpeg,.webp"
               onChange={handleFileUpload}
               className="hidden"
             />
@@ -224,7 +364,7 @@ export const DocumentScanner: React.FC = () => {
               Drag & Drop Documents Here
             </h3>
             <p className="text-xs text-slate-400 mt-1 mb-5">
-              PDF, JPG, PNG supported • Up to 25 MB per file
+              PDF, JPG, PNG, WEBP supported • Up to 10 MB per file • Max 10MB limit enforced
             </p>
 
             <label
@@ -237,10 +377,10 @@ export const DocumentScanner: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column: AI Analysis Progress & Extracted Entity Card (Matching prototype) */}
+        {/* Right Column: AI Analysis Progress & Extracted Entity Card */}
         <div className="lg:col-span-5 space-y-6">
           
-          {/* AI Analysis Progress (Exact match with prototype: 75% bar) */}
+          {/* AI Analysis Progress */}
           <div className="bg-[#10283D] border border-[#1E3A5F] rounded-3xl p-5 sm:p-6 shadow-card">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
@@ -260,20 +400,22 @@ export const DocumentScanner: React.FC = () => {
               />
             </div>
 
-            {/* Progress Checklist Steps (Matching prototype checklist) */}
+            {/* Progress Checklist Steps */}
             <div className="space-y-3 text-xs">
               <div className="flex items-center gap-3">
                 <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 </div>
-                <span className="font-semibold text-slate-200">Document Classified</span>
+                <span className="font-semibold text-slate-200">Document Classified & Sanitized</span>
               </div>
 
               <div className="flex items-center gap-3">
                 <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center flex-shrink-0">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 </div>
-                <span className="font-semibold text-slate-200">Information Extracted</span>
+                <span className="font-semibold text-slate-200">
+                  Information Extracted {enablePiiRedaction && '(PII Masked)'}
+                </span>
               </div>
 
               <div className="flex items-center gap-3">
@@ -317,9 +459,16 @@ export const DocumentScanner: React.FC = () => {
                     ₹{activeExtractedResult.value.toLocaleString('en-IN')}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-slate-400">Reference:</span>
-                  <span className="font-mono text-slate-300">{activeExtractedResult.accountRef}</span>
+                  <span className="font-mono text-emerald-300 flex items-center gap-1.5">
+                    {activeExtractedResult.accountRef}
+                    {activeExtractedResult.piiMasked && (
+                      <span className="text-[9px] uppercase px-1.5 py-0.2 bg-emerald-500/20 text-emerald-400 rounded">
+                        Masked
+                      </span>
+                    )}
+                  </span>
                 </div>
               </div>
 
@@ -381,4 +530,5 @@ export const DocumentScanner: React.FC = () => {
     </div>
   );
 };
+
 

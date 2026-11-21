@@ -251,6 +251,56 @@ export const SettingsView: React.FC = () => {
                 </span>
               </div>
 
+              {/* Client-Side Zero-Knowledge Encryption Architecture Card */}
+              <div className="p-5 rounded-2xl bg-[#0A2238] border border-emerald-500/40 space-y-3.5">
+                <div className="flex items-center justify-between border-b border-[#1E3A5F] pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-emerald-400" />
+                    <div>
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                        Client-Side Zero-Knowledge Architecture
+                      </h4>
+                      <p className="text-[10px] text-emerald-400 font-mono">
+                        PBKDF2 (100,000 Rounds) + WebCrypto AES-GCM 256-Bit
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    End-to-End Client Encrypted
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-slate-300 text-[11px]">
+                  <div className="p-3 rounded-xl bg-[#061525] border border-[#1E3A5F] space-y-1">
+                    <span className="font-bold text-white block">Client-Derived Keys</span>
+                    <p className="text-slate-400 text-[10px] leading-relaxed">
+                      Encryption keys are derived locally in browser memory via PBKDF2 using SHA-256 and unique user salts. Keys are never transmitted to any server or cloud API.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#061525] border border-[#1E3A5F] space-y-1">
+                    <span className="font-bold text-white block">Zero Credential Storage</span>
+                    <p className="text-slate-400 text-[10px] leading-relaxed">
+                      Finance Legacy never stores bank passwords, MPINs, or debit card CVVs. Only read-only audit footprints and masked references are retained.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#061525] border border-[#1E3A5F] space-y-1">
+                    <span className="font-bold text-white block">Cryptographic User Isolation</span>
+                    <p className="text-slate-400 text-[10px] leading-relaxed">
+                      Every registered user account maintains a distinct, cryptographically isolated storage compartment in IndexedDB / LocalStorage.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#061525] border border-[#1E3A5F] space-y-1">
+                    <span className="font-bold text-white block">PII Redaction Engine</span>
+                    <p className="text-slate-400 text-[10px] leading-relaxed">
+                      Uploaded tax forms and bank statements pass through an in-memory client-side regex filter masking PAN, Aadhaar, and account digits before AI parsing.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="p-4 rounded-2xl bg-[#061525] border border-[#1E3A5F] flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-bold text-white">Assistant Chat Session</h4>

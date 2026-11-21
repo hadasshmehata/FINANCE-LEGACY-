@@ -10,27 +10,62 @@ import {
   ExternalLink,
   Lock,
   Copy,
+  Shield,
+  Info,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { FraudAnalysisResult } from '../../types';
 
+// Client-side input sanitizer: strips dangerous script/html tags and unsafe URI schemes
+const sanitizeInput = (text: string): string => {
+  return text
+    .replace(/<[^>]*>/g, '') // remove HTML tags
+    .replace(/javascript:/gi, '')
+    .replace(/data:/gi, '')
+    .trim();
+};
+
 export const FraudDetector: React.FC = () => {
   const { analyzeFraudText, fraudScans } = useApp();
 
-  const [inputText, setInputText] = useState(
-    'You have won ₹1,00,000! Click here to claim: http://fake-link.com'
+  // Realistic default simulated recovery fee scam instead of generic fake-link
+  const defaultScamText =
+    'URGENT: Outstanding unclaimed insurance settlement of ₹2,85,000 pending under Policy #908123. To release payment to your bank savings account immediately, deposit mandatory processing stamp duty fee of ₹2,500 to UPI ID govt-settlement@upi or call +91-98765-43210.';
+
+  const [inputText, setInputText] = useState(defaultScamText);
+  const [currentResult, setCurrentResult] = useState<FraudAnalysisResult>(
+    fraudScans[0] || {
+      id: 'scan_init',
+      inputText: defaultScamText,
+      riskLevel: 'HIGH',
+      riskScore: 92,
+      suspiciousIndicators: [
+        'Demands upfront advance processing fee before releasing funds',
+        'Uses urgent, time-pressured language to induce panic',
+        'Requests money transfer to personal or unverified UPI handle',
+        'Official financial institutions deduct fees from proceeds rather than asking for UPI pre-deposits',
+      ],
+      explanation:
+        'This message exhibits all signature patterns of an Advance Fee Recovery Scam (Section 66D IT Act). Legitimate regulators (RBI, IRDAI, EPFO) never solicit processing fees or stamp duties via personal UPI handles.',
+      safeActions: [
+        'Never transfer any advance registration or processing fee to release financial claims',
+        'Block the sender number and do not dial the provided helpline',
+        'Report the incident to the National Cyber Crime Helpline at 1930',
+        'Verify legitimate claim status directly on the official insurer or bank portal',
+      ],
+      analyzedAt: 'Just now',
+    }
   );
-  const [currentResult, setCurrentResult] = useState<FraudAnalysisResult>(fraudScans[0]);
   const [isScanning, setIsScanning] = useState(false);
 
   const presets = [
     {
-      label: 'Lottery Phishing (From Prototype)',
-      text: 'You have won ₹1,00,000! Click here to claim: http://fake-link.com',
+      label: 'Advance Fee Recovery Scam',
+      text: 'URGENT: Outstanding unclaimed insurance settlement of ₹2,85,000 pending under Policy #908123. To release payment to your bank savings account immediately, deposit mandatory processing stamp duty fee of ₹2,500 to UPI ID govt-settlement@upi or call +91-98765-43210.',
     },
     {
       label: 'EPFO Account Block Phishing',
-      text: 'URGENT: Your EPFO account UAN 1012**** has been blocked due to pending KYC. Pay ₹500 verification fee immediately: http://epfo-online-kyc.xyz/unblock or reply with OTP.',
+      text: 'URGENT: Your EPFO account UAN 1012**** has been blocked due to pending KYC. Pay ₹500 verification fee immediately at epfo-online-kyc-desk.org/unblock or reply with your Aadhaar OTP.',
     },
     {
       label: 'Legitimate Bank Advisory',
@@ -40,10 +75,11 @@ export const FraudDetector: React.FC = () => {
 
   const handleScan = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
+    const sanitized = sanitizeInput(inputText);
+    if (!sanitized) return;
     setIsScanning(true);
     setTimeout(() => {
-      const res = analyzeFraudText(inputText);
+      const res = analyzeFraudText(sanitized);
       setCurrentResult(res);
       setIsScanning(false);
     }, 600);
@@ -65,24 +101,32 @@ export const FraudDetector: React.FC = () => {
             Check Suspicious Messages & Recovery Scams
           </h1>
           <p className="text-xs sm:text-sm text-slate-400">
-            Predatory scammers target forgotten asset claimants. Test SMS, WhatsApp messages, and links before clicking.
+            Predatory scammers target forgotten asset claimants. Test SMS, WhatsApp messages, and communication offline safely.
           </p>
         </div>
 
         <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3.5 py-2 rounded-2xl">
           <Lock className="w-4 h-4" />
-          <span>Zero Credential Storage • 100% Confidential Analysis</span>
+          <span>Zero Credential Storage • 100% Client-Side Heuristics</span>
         </div>
+      </div>
+
+      {/* Sandboxing Notice */}
+      <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs flex items-center gap-2.5">
+        <Info className="w-4 h-4 flex-shrink-0 text-cyan-400" />
+        <span>
+          <strong>Sandboxed Heuristic Evaluation:</strong> Message text and links are analyzed entirely in local browser memory. No network requests, link fetching, or web scraping of untrusted targets are executed.
+        </span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* Left Column: Input Form (Exact match with prototype) */}
+        {/* Left Column: Input Form */}
         <div className="lg:col-span-6 bg-[#10283D] border border-[#1E3A5F] rounded-3xl p-5 sm:p-6 shadow-card space-y-4">
           <div className="flex items-center justify-between border-b border-[#1E3A5F] pb-3">
             <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-cyan-400" />
-              Paste Suspicious Message or Link
+              Paste Suspicious Message or Advisory
             </h3>
             <span className="text-[10px] text-slate-400">SMS / WhatsApp / Email</span>
           </div>
@@ -108,12 +152,12 @@ export const FraudDetector: React.FC = () => {
                 required
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Paste the message content, email body, or recovery claim link here..."
+                placeholder="Paste the message content, email body, or recovery communication here..."
                 className="w-full bg-[#061525] border border-[#1E3A5F] focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/40 rounded-2xl p-4 text-xs text-white placeholder-slate-500 outline-none leading-relaxed transition-all font-mono"
               />
             </div>
 
-            {/* Analyze Button (Exact match with prototype: Cyan button) */}
+            {/* Analyze Button */}
             <button
               type="submit"
               disabled={isScanning}
@@ -127,7 +171,7 @@ export const FraudDetector: React.FC = () => {
               ) : (
                 <>
                   <Search className="w-4 h-4" />
-                  <span>Analyze Message</span>
+                  <span>Analyze Message Safely</span>
                 </>
               )}
             </button>
@@ -140,10 +184,11 @@ export const FraudDetector: React.FC = () => {
             </span>
             <p>• Never share Banking Passwords, ATM PINs, OTPs, or CVVs with anyone.</p>
             <p>• Real recovery officers and banks never demand payment through UPI or WhatsApp.</p>
+            <p>• Legitimate statutory bodies (EPFO, RBI, Post Office) never charge release fees via unverified links.</p>
           </div>
         </div>
 
-        {/* Right Column: Threat Evaluation Result (Exact match with prototype: HIGH RISK red badge) */}
+        {/* Right Column: Threat Evaluation Result */}
         <div className="lg:col-span-6 bg-[#10283D] border border-[#1E3A5F] rounded-3xl p-5 sm:p-6 shadow-card flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between border-b border-[#1E3A5F] pb-3 mb-4">
@@ -156,7 +201,7 @@ export const FraudDetector: React.FC = () => {
 
             {currentResult && (
               <div className="space-y-4">
-                {/* Risk Level Card (Exact replica of prototype) */}
+                {/* Risk Level Card */}
                 <div
                   className={`p-4 rounded-2xl border text-center flex flex-col items-center justify-center ${
                     currentResult.riskLevel === 'HIGH'
@@ -185,7 +230,7 @@ export const FraudDetector: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Suspicious Indicators (Exact match with prototype: Urgent action required, External link, Guaranteed reward) */}
+                {/* Suspicious Indicators */}
                 <div>
                   <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
                     Suspicious Indicators Detected:
@@ -244,4 +289,5 @@ export const FraudDetector: React.FC = () => {
     </div>
   );
 };
+
 

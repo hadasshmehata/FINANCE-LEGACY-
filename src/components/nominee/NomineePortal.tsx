@@ -57,7 +57,7 @@ export const NomineePortal: React.FC = () => {
   const [newMemberPerms, setNewMemberPerms] = useState<AssetCategory[]>(['Banking', 'EPF', 'Insurance']);
 
   // Death certificate upload simulation form
-  const [deceasedName, setDeceasedName] = useState(nomineeRequest.targetUserName || 'Ramesh Kumar');
+  const [deceasedName, setDeceasedName] = useState(nomineeRequest.targetUserName || currentUser.name || 'Asset Owner');
   const [dateOfDeath, setDateOfDeath] = useState('Jan 15, 2025');
   const [regNo, setRegNo] = useState('MCD/DTH/2025/90412');
   const [authority, setAuthority] = useState('Municipal Corporation of Delhi');
@@ -250,7 +250,9 @@ export const NomineePortal: React.FC = () => {
               <div className="text-sm font-extrabold text-amber-400 truncate">
                 {nomineeRequest.status}
               </div>
-              <span className="text-[10px] text-slate-400">Priya Kumar's request</span>
+              <span className="text-[10px] text-slate-400">
+                {nomineeRequest.nomineeName ? `${nomineeRequest.nomineeName}'s request` : 'Active request'}
+              </span>
             </div>
 
             <div className="bg-[#10283D] border border-[#1E3A5F] rounded-2xl p-4 shadow-card">

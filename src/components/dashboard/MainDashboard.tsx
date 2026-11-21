@@ -46,6 +46,7 @@ export const MainDashboard: React.FC = () => {
     setActiveTab,
     assets,
     claims,
+    documents,
     gaps,
     footprint,
     analyzeFootprintAI,
@@ -72,7 +73,9 @@ export const MainDashboard: React.FC = () => {
   };
 
   // Local widget states for quick interactions on the panoramic dashboard
-  const [fraudInput, setFraudInput] = useState('You have won ₹1,00,000! Click here to claim: http://fake-link.com');
+  const [fraudInput, setFraudInput] = useState(
+    'Urgent: Unclaimed bank settlement of ₹85,000 approved. Pay ₹1,200 verification charge to release funds: http://rbi-claim-support.net'
+  );
   const [quickFraudResult, setQuickFraudResult] = useState(fraudScans[0]);
   const [quickAiInput, setQuickAiInput] = useState('');
   const [showAddAssetModal, setShowAddAssetModal] = useState(false);
@@ -212,7 +215,7 @@ export const MainDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* 4 Metrics Row (Exact match from prototype) */}
+          {/* 4 Metrics Row (With Clear Verified vs Clue-Based Potential Value Distinction) */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {/* Metric 1: Potential Assets */}
             <div
@@ -228,8 +231,10 @@ export const MainDashboard: React.FC = () => {
               <div className="text-lg font-black text-white">
                 {formatINR(totalPotentialAssetsValue)}
               </div>
-              <div className="text-[10px] text-emerald-400 font-medium mt-0.5">
-                {assetsDiscoveredCount} discovered
+              <div className="flex items-center gap-1.5 text-[9px] mt-1 flex-wrap">
+                <span className="text-emerald-400 font-semibold">{assets.filter(a => a.verificationStatus === 'Verified').length} Verified</span>
+                <span className="text-slate-500">•</span>
+                <span className="text-amber-400 font-semibold">{assets.filter(a => a.verificationStatus !== 'Verified').length} Clue-Based</span>
               </div>
             </div>
 
@@ -245,7 +250,9 @@ export const MainDashboard: React.FC = () => {
                 </div>
               </div>
               <div className="text-lg font-black text-white">{claimsCount}</div>
-              <div className="text-[10px] text-cyan-400 font-medium mt-0.5">2 need attention</div>
+              <div className="text-[10px] text-cyan-400 font-medium mt-0.5">
+                {claims.reduce((acc, c) => acc + c.tasks.filter((t) => !t.completed).length, 0)} actions pending
+              </div>
             </div>
 
             {/* Metric 3: Readiness Score */}
@@ -260,7 +267,7 @@ export const MainDashboard: React.FC = () => {
                 </div>
               </div>
               <div className="text-lg font-black text-white">{readinessScore}%</div>
-              <div className="text-[10px] text-slate-400 mt-0.5">Verified Ready</div>
+              <div className="text-[10px] text-slate-400 mt-0.5">Recovery Preparedness</div>
             </div>
 
             {/* Metric 4: Recovery Progress */}
@@ -275,8 +282,23 @@ export const MainDashboard: React.FC = () => {
                 </div>
               </div>
               <div className="text-lg font-black text-white">{recoveryProgress}%</div>
-              <div className="text-[10px] text-emerald-400 font-medium mt-0.5">+15% this quarter</div>
+              <div className="text-[10px] text-emerald-400 font-medium mt-0.5">
+                {claims.filter((c) => c.currentStage === 'Recovered').length}/{claims.length || 1} Settled
+              </div>
             </div>
+          </div>
+
+          {/* Verification & Trust Disclaimer Banner */}
+          <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-[#081a2e] border border-cyan-500/25 text-[11px] text-slate-300">
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+              <span>
+                <strong>Asset Classification:</strong> Inferred clues from Form 26AS, PF records, and salary deductions are marked as <em>Clue-Based Estimates</em> until verified with institutional branch records.
+              </span>
+            </div>
+            <span className="hidden md:inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">
+              {assets.filter(a => a.verificationStatus === 'Verified').length} Verified • {assets.filter(a => a.verificationStatus !== 'Verified').length} Clues
+            </span>
           </div>
 
           {/* Row of 2 Visualizations: Assets by Category Donut + Recovery Progress Line */}
@@ -545,27 +567,49 @@ export const MainDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* AI Analysis Progress (75% bar matching prototype) */}
+            {/* AI Analysis Progress (Dynamic Real State) */}
             <div>
               <div className="flex items-center justify-between text-[11px] mb-1.5">
                 <span className="font-bold text-white">AI Analysis Progress</span>
-                <span className="font-bold text-emerald-400">75%</span>
+                <span className="font-bold text-emerald-400">
+                  {documents.length === 0 && assets.length === 0
+                    ? '15%'
+                    : `${Math.min(100, Math.round((documents.length > 0 ? 35 : 15) + (documents.some((d) => d.analyzed || (d.extractedEntities && d.extractedEntities.length > 0)) ? 25 : 10) + (assets.length > 0 ? 30 : 0) + (assets.filter((a) => a.verificationStatus === 'Verified').length > 0 ? 10 : 0)))}%`}
+                </span>
               </div>
               <div className="w-full bg-[#061525] rounded-full h-2 overflow-hidden mb-3">
-                <div className="bg-gradient-to-r from-emerald-500 to-cyan-400 h-full rounded-full w-[75%]" />
+                <div
+                  className="bg-gradient-to-r from-emerald-500 to-cyan-400 h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${documents.length === 0 && assets.length === 0 ? 15 : Math.min(100, Math.round((documents.length > 0 ? 35 : 15) + (documents.some((d) => d.analyzed || (d.extractedEntities && d.extractedEntities.length > 0)) ? 25 : 10) + (assets.length > 0 ? 30 : 0) + (assets.filter((a) => a.verificationStatus === 'Verified').length > 0 ? 10 : 0)))}%`,
+                  }}
+                />
               </div>
               <div className="space-y-1.5 text-[11px]">
                 <div className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                  <span>Document Classified</span>
+                  <CheckCircle2 className={`w-3.5 h-3.5 flex-shrink-0 ${documents.length > 0 ? 'text-emerald-400' : 'text-slate-500'}`} />
+                  <span className={documents.length > 0 ? 'text-slate-300' : 'text-slate-500'}>
+                    {documents.length > 0 ? `${documents.length} Documents Classified` : 'Awaiting Document Upload'}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                  <span>Information Extracted</span>
+                  <CheckCircle2 className={`w-3.5 h-3.5 flex-shrink-0 ${documents.some((d) => d.analyzed || (d.extractedEntities && d.extractedEntities.length > 0)) || assets.length > 0 ? 'text-emerald-400' : 'text-slate-500'}`} />
+                  <span className={documents.some((d) => d.analyzed || (d.extractedEntities && d.extractedEntities.length > 0)) || assets.length > 0 ? 'text-slate-300' : 'text-slate-500'}>
+                    Metadata & Financial Entities Extracted
+                  </span>
                 </div>
-                <div className="flex items-center gap-2 text-cyan-300">
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping flex-shrink-0" />
-                  <span>Analyzing Financial Clues...</span>
+                <div className="flex items-center gap-2">
+                  {assets.length > 0 ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+                      <span className="text-cyan-300 font-medium">{assets.length} Financial Clues Correlated</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping flex-shrink-0" />
+                      <span className="text-slate-400">Scanner Engine Ready</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -828,48 +872,78 @@ export const MainDashboard: React.FC = () => {
             </div>
             <p className="text-[10px] text-slate-400 mb-3">Track your recovery journey.</p>
 
-            {/* Vertical Timeline matching prototype */}
-            <div className="space-y-2.5 text-[11px] pl-1 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#1E3A5F]">
-              <div className="flex items-center gap-2.5 relative">
-                <div className="w-4 h-4 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[9px] font-bold z-10">
-                  ✓
+            {/* Dynamic Claim Timeline matching active profile */}
+            {claims.length > 0 ? (
+              <div className="space-y-2 text-[11px] pl-1 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#1E3A5F]">
+                <div className="flex items-center gap-2.5 relative">
+                  <div className="w-4 h-4 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[9px] font-bold z-10">
+                    ✓
+                  </div>
+                  <div>
+                    <span className="font-bold text-white block">Asset Discovered</span>
+                    <span className="text-[9px] text-slate-400">{claims[0].assetName}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-bold text-white block">Asset Discovered</span>
-                  <span className="text-[9px] text-slate-400">Apr 20, 2025</span>
-                </div>
-              </div>
 
-              <div className="flex items-center gap-2.5 relative">
-                <div className="w-4 h-4 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[9px] font-bold z-10">
-                  ✓
+                <div className="flex items-center gap-2.5 relative">
+                  <div
+                    className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold z-10 ${
+                      claims[0].progressPercentage >= 35
+                        ? 'bg-emerald-500 text-slate-950'
+                        : 'bg-[#061525] border-2 border-cyan-400 text-cyan-400'
+                    }`}
+                  >
+                    {claims[0].progressPercentage >= 35 ? '✓' : '•'}
+                  </div>
+                  <div>
+                    <span className="font-bold text-white block">Documentation & KYC</span>
+                    <span className="text-[9px] text-slate-400">{claims[0].institution}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-bold text-white block">Verification Complete</span>
-                  <span className="text-[9px] text-slate-400">Apr 21, 2025</span>
-                </div>
-              </div>
 
-              <div className="flex items-center gap-2.5 relative">
-                <div className="w-4 h-4 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center text-[9px] font-bold z-10">
-                  ✓
+                <div className="flex items-center gap-2.5 relative">
+                  <div
+                    className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold z-10 ${
+                      claims[0].progressPercentage >= 60
+                        ? 'bg-emerald-500 text-slate-950'
+                        : 'bg-[#061525] border border-[#1E3A5F] text-slate-500'
+                    }`}
+                  >
+                    {claims[0].progressPercentage >= 60 ? '✓' : '•'}
+                  </div>
+                  <div>
+                    <span className="font-bold text-white block">Claim Docket Filed</span>
+                    <span className="text-[9px] text-cyan-400 font-mono">{claims[0].claimReferenceNumber}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-bold text-white block">Claim Submitted</span>
-                  <span className="text-[9px] text-slate-400">Apr 22, 2025</span>
+
+                <div className="flex items-center gap-2.5 relative">
+                  <div
+                    className={`w-4 h-4 rounded-full z-10 ${
+                      claims[0].currentStage === 'Recovered'
+                        ? 'bg-emerald-500 text-slate-950 flex items-center justify-center text-[9px] font-bold'
+                        : 'bg-[#061525] border-2 border-amber-400 animate-pulse'
+                    }`}
+                  >
+                    {claims[0].currentStage === 'Recovered' && '✓'}
+                  </div>
+                  <div>
+                    <span className="font-bold text-amber-300 block">{claims[0].currentStage}</span>
+                    <span className="text-[9px] text-slate-400">
+                      Follow-up: {claims[0].followUpDate || 'Institutional Review in Progress'}
+                    </span>
+                  </div>
                 </div>
               </div>
-
-              <div className="flex items-center gap-2.5 relative">
-                <div className="w-4 h-4 rounded-full bg-[#061525] border-2 border-cyan-400 z-10 animate-pulse" />
-                <span className="font-bold text-cyan-300">Under Verification</span>
+            ) : (
+              <div className="p-3 rounded-2xl bg-[#061525] border border-[#1E3A5F] text-center my-2">
+                <FileCheck className="w-6 h-6 text-slate-500 mx-auto mb-1.5" />
+                <p className="text-[11px] font-bold text-slate-300">No Active Claims Yet</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  Convert discovered assets into institutional recovery claims in the Claim Navigator.
+                </p>
               </div>
-
-              <div className="flex items-center gap-2.5 relative">
-                <div className="w-4 h-4 rounded-full bg-[#0B1E32] border border-[#1E3A5F] z-10" />
-                <span className="text-slate-500">Recovery Pending</span>
-              </div>
-            </div>
+            )}
           </div>
 
           <div className="pt-3 border-t border-[#1E3A5F] mt-3 text-right">
@@ -981,7 +1055,7 @@ export const MainDashboard: React.FC = () => {
             </div>
             <p className="text-[10px] text-slate-400 mb-3">Ask anything about your financial legacy.</p>
 
-            {/* Chat conversation preview matching prototype */}
+            {/* Dynamic chat conversation preview matching active user portfolio */}
             <div className="space-y-2 mb-3">
               <div className="ml-auto max-w-[85%] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 p-2 rounded-xl text-[11px] font-medium">
                 What are my potential assets?
@@ -990,8 +1064,19 @@ export const MainDashboard: React.FC = () => {
                 <div className="w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Bot className="w-3.5 h-3.5" />
                 </div>
-                <div className="bg-[#061525] border border-[#1E3A5F] text-slate-200 p-2 rounded-xl text-[11px] leading-snug">
-                  You have 4 potential assets including ABC Bank Savings, XYZ FD and EPF Account.
+                <div className="bg-[#061525] border border-[#1E3A5F] text-slate-200 p-2.5 rounded-xl text-[11px] leading-snug">
+                  {assets.length > 0 ? (
+                    <>
+                      You have <strong className="text-emerald-400">{assets.length} potential {assets.length === 1 ? 'asset' : 'assets'}</strong> totaling <strong className="text-white">{formatINR(totalPotentialAssetsValue)}</strong>
+                      {assets.length > 0 && (
+                        <span> including {assets.slice(0, 2).map((a) => a.name).join(' and ')}</span>
+                      )}.
+                    </>
+                  ) : (
+                    <>
+                      No assets discovered yet for <strong className="text-white">{currentUser.name}</strong>. Upload your bank statements or employment documents in the Document Scanner to begin discovery.
+                    </>
+                  )}
                 </div>
               </div>
             </div>

@@ -34,6 +34,17 @@ export interface UserProfileData {
   lastUpdated: string;
 }
 
+export interface RegisteredAccount {
+  id: string;
+  name: string;
+  email: string;
+  password?: string;
+  role: 'primary' | 'nominee';
+  occupation?: string;
+  createdAt: string;
+  onboardingCompleted?: boolean;
+}
+
 export interface AppSettings {
   activeDemoKey: string;
   activeRole: 'primary' | 'nominee';
@@ -43,6 +54,7 @@ export interface AppSettings {
 
 const SETTINGS_KEY = 'fl_app_settings_v2';
 const PROFILE_KEY_PREFIX = 'fl_profile_v2_';
+const REGISTERED_ACCOUNTS_KEY = 'fl_registered_accounts_v2';
 
 /**
  * Default initial profile for an empty registered user
@@ -303,13 +315,15 @@ export const StorageService = {
     }
 
     // Fallback for real users: return empty profile structure
+    const matchedAccount = StorageService.getRegisteredAccounts().find((a) => a.id === userId);
     const fallbackUser: UserProfile = {
       id: userId,
-      name: 'Registered User',
-      email: `${userId}@financelegacy.local`,
-      role: 'primary',
+      name: matchedAccount ? matchedAccount.name : 'Registered User',
+      email: matchedAccount ? matchedAccount.email : `${userId}@financelegacy.local`,
+      occupation: matchedAccount?.occupation,
+      role: matchedAccount ? matchedAccount.role : 'primary',
       isDemoUser: false,
-      onboardingCompleted: false,
+      onboardingCompleted: matchedAccount?.onboardingCompleted ?? false,
       familyMembers: [],
     };
     const emptyData = createEmptyProfileData(fallbackUser);
@@ -409,5 +423,87 @@ export const StorageService = {
       console.error('Invalid JSON backup file', e);
     }
     return null;
+  },
+
+  /**
+   * Get all registered accounts (including default sample registered account)
+   */
+  getRegisteredAccounts(): RegisteredAccount[] {
+    try {
+      const raw = localStorage.getItem(REGISTERED_ACCOUNTS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load registered accounts', e);
+    }
+
+    // Default registered account to ensure Asset Owner login always has a real registered user available
+    const defaultRegistered: RegisteredAccount[] = [
+      {
+        id: 'usr_real_vikram',
+        name: 'Vikram Malhotra',
+        email: 'vikram.malhotra@email.com',
+        password: 'password123',
+        role: 'primary',
+        occupation: 'Business Executive',
+        createdAt: new Date().toISOString(),
+        onboardingCompleted: false,
+      },
+    ];
+
+    try {
+      localStorage.setItem(REGISTERED_ACCOUNTS_KEY, JSON.stringify(defaultRegistered));
+    } catch {
+      // ignore
+    }
+
+    return defaultRegistered;
+  },
+
+  /**
+   * Save or update a registered account
+   */
+  saveRegisteredAccount(account: RegisteredAccount): void {
+    try {
+      const accounts = StorageService.getRegisteredAccounts();
+      const existingIdx = accounts.findIndex(
+        (a) => a.id === account.id || a.email.toLowerCase() === account.email.toLowerCase()
+      );
+      if (existingIdx >= 0) {
+        accounts[existingIdx] = { ...accounts[existingIdx], ...account };
+      } else {
+        accounts.unshift(account);
+      }
+      localStorage.setItem(REGISTERED_ACCOUNTS_KEY, JSON.stringify(accounts));
+    } catch (e) {
+      console.warn('Failed to save registered account', e);
+    }
+  },
+
+  /**
+   * Find a registered account by email (case-insensitive)
+   */
+  findAccountByEmail(email: string): RegisteredAccount | undefined {
+    if (!email) return undefined;
+    const cleanEmail = email.trim().toLowerCase();
+    const accounts = StorageService.getRegisteredAccounts();
+    return accounts.find((a) => a.email.toLowerCase() === cleanEmail);
+  },
+
+  /**
+   * Delete a registered account
+   */
+  deleteRegisteredAccount(accountId: string): void {
+    try {
+      const accounts = StorageService.getRegisteredAccounts().filter((a) => a.id !== accountId);
+      localStorage.setItem(REGISTERED_ACCOUNTS_KEY, JSON.stringify(accounts));
+      localStorage.removeItem(`${PROFILE_KEY_PREFIX}${accountId}`);
+    } catch (e) {
+      console.warn('Failed to delete registered account', e);
+    }
   },
 };

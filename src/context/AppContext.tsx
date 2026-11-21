@@ -27,7 +27,7 @@ import {
   demoMeera,
 } from '../data/demoProfiles';
 import { initialLetters, initialChatMessages } from '../data/initialData';
-import { StorageService, UserProfileData, createEmptyProfileData } from '../services/storageService';
+import { StorageService, UserProfileData, createEmptyProfileData, RegisteredAccount } from '../services/storageService';
 import { queryFinancialAssistant, AssistantContext } from '../services/aiAssistantService';
 
 interface AppContextType {
@@ -35,12 +35,17 @@ interface AppContextType {
   currentUser: UserProfile;
   isAuthenticated: boolean;
   activeRole: UserRole;
-  login: (role: UserRole, email?: string) => void;
+  login: (role: UserRole, email?: string, password?: string) => void;
   registerNewUser: (name: string, email: string, password?: string, role?: UserRole) => void;
   loginNomineeWithTarget: (nomineeEmail: string, nomineePassword: string, targetUserEmail: string) => void;
   logout: () => void;
   switchRole: (role: UserRole) => void;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
+
+  // Registered Real Accounts
+  registeredUsers: RegisteredAccount[];
+  loginRegisteredUser: (userId: string) => void;
+  deleteRegisteredUser: (userId: string) => void;
 
   // Demo Profiles
   activeDemoKey: string;
@@ -163,6 +168,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [claimLetters, setClaimLetters] = useState<ClaimLetter[]>(initialProfileData.claimLetters);
   const [messages, setMessages] = useState<ChatMessage[]>(initialProfileData.chatMessages);
   const [activities, setActivities] = useState<ActivityItem[]>(initialProfileData.activities);
+  const [registeredAccounts, setRegisteredAccounts] = useState<RegisteredAccount[]>(() =>
+    StorageService.getRegisteredAccounts()
+  );
 
   const [isAnalyzingFootprint, setIsAnalyzingFootprint] = useState(false);
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -293,15 +301,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // ==========================================
+  // REAL REGISTERED USERS MANAGEMENT
+  // ==========================================
+  const loginRegisteredUser = (userId: string) => {
+    isSwitchingProfileRef.current = true;
+    const profileData = StorageService.loadProfileData(userId);
+
+    setCurrentUser(profileData.user);
+    setAssets(profileData.assets);
+    setClaims(profileData.claims);
+    setDocuments(profileData.documents);
+    setGaps(profileData.gaps);
+    setFootprint(profileData.footprint);
+    setFamilyMembers(profileData.familyMembers);
+    setNomineeRequest(profileData.nomineeRequest);
+    setActivities(profileData.activities);
+    setMessages(profileData.chatMessages);
+    setClaimLetters(profileData.claimLetters);
+    setFraudScans(profileData.fraudScans);
+
+    setActiveRole(profileData.user.role || 'primary');
+    setIsAuthenticated(true);
+    setActiveDemoKey('custom');
+
+    StorageService.saveSettings({
+      activeDemoKey: 'custom',
+      activeRole: profileData.user.role || 'primary',
+      isAuthenticated: true,
+      activeUserId: userId,
+    });
+
+    setTimeout(() => {
+      isSwitchingProfileRef.current = false;
+    }, 100);
+
+    if (!profileData.user.onboardingCompleted && profileData.user.role === 'primary') {
+      setShowOnboarding(true);
+    } else {
+      setShowOnboarding(false);
+    }
+
+    addActivity(`Logged in as Real Asset Owner: ${profileData.user.name} (${profileData.user.email})`, 'alert');
+  };
+
+  const deleteRegisteredUser = (userId: string) => {
+    StorageService.deleteRegisteredAccount(userId);
+    setRegisteredAccounts(StorageService.getRegisteredAccounts());
+    if (currentUser.id === userId) {
+      selectDemoProfile('ramesh');
+    }
+    addActivity('Registered user account removed from system', 'alert');
+  };
+
+  // ==========================================
   // REGISTER NEW REAL USER (STARTS COMPLETELY EMPTY)
   // ==========================================
   const registerNewUser = (name: string, email: string, password?: string, role: UserRole = 'primary') => {
     isSwitchingProfileRef.current = true;
+    const cleanEmail = email.trim().toLowerCase();
     const newUserId = `usr_real_${Date.now()}`;
     const newUser: UserProfile = {
       id: newUserId,
       name,
-      email,
+      email: cleanEmail,
       role,
       isDemoUser: false,
       onboardingCompleted: false,
@@ -311,6 +373,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const emptyData = createEmptyProfileData(newUser);
     StorageService.saveProfileData(newUserId, emptyData);
+
+    const newAccount: RegisteredAccount = {
+      id: newUserId,
+      name,
+      email: cleanEmail,
+      password: password || 'password123',
+      role,
+      createdAt: new Date().toISOString(),
+      onboardingCompleted: false,
+    };
+    StorageService.saveRegisteredAccount(newAccount);
+    setRegisteredAccounts(StorageService.getRegisteredAccounts());
 
     setCurrentUser(emptyData.user);
     setAssets(emptyData.assets);
@@ -327,6 +401,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setActiveRole(role);
     setIsAuthenticated(true);
+    setActiveDemoKey('custom');
 
     StorageService.saveSettings({
       activeDemoKey: 'custom',
@@ -343,7 +418,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setShowOnboarding(true);
     }
 
-    addActivity(`New user registered: ${name}. Starting with empty financial profile.`, 'alert');
+    addActivity(`New real asset owner registered: ${name}. Starting with empty financial profile.`, 'alert');
   };
 
   // Nominee Login with Target User Verification workflow
@@ -394,17 +469,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addActivity(`Nominee logged in: ${nomineeEmail}. Status: ${targetProfile.nomineeRequest.status}`, 'alert');
   };
 
-  const login = (role: UserRole, email?: string) => {
+  const login = (role: UserRole, email?: string, password?: string) => {
     setActiveRole(role);
     setIsAuthenticated(true);
 
     if (role === 'primary') {
-      if (email && email.includes('sharma')) selectDemoProfile('priya');
-      else if (email && email.includes('arjun')) selectDemoProfile('arjun');
-      else if (email && email.includes('meera')) selectDemoProfile('meera');
-      else selectDemoProfile('ramesh');
+      const cleanEmail = (email || '').trim().toLowerCase();
+
+      // 1. Check if user email matches an existing registered real account
+      const foundAccount = StorageService.findAccountByEmail(cleanEmail);
+      if (foundAccount) {
+        loginRegisteredUser(foundAccount.id);
+        return;
+      }
+
+      // 2. Check if email matches one of the 4 fictional demo profiles
+      if (cleanEmail.includes('priya') || cleanEmail.includes('sharma')) {
+        selectDemoProfile('priya');
+      } else if (cleanEmail.includes('arjun')) {
+        selectDemoProfile('arjun');
+      } else if (cleanEmail.includes('meera')) {
+        selectDemoProfile('meera');
+      } else if (cleanEmail.includes('ramesh')) {
+        selectDemoProfile('ramesh');
+      } else if (cleanEmail.length > 0) {
+        // 3. New real user email entered: automatically create their registered account and start empty profile
+        const autoName = cleanEmail.split('@')[0].replace(/[._]/g, ' ');
+        const formattedName = autoName.charAt(0).toUpperCase() + autoName.slice(1);
+        registerNewUser(formattedName, cleanEmail, password || 'password123', 'primary');
+      } else {
+        // Default fallback to first registered account or Ramesh demo
+        const registered = StorageService.getRegisteredAccounts();
+        if (registered.length > 0) {
+          loginRegisteredUser(registered[0].id);
+        } else {
+          selectDemoProfile('ramesh');
+        }
+      }
     } else {
-      loginNomineeWithTarget(email || 'priya.k@email.com', 'password123', 'ramesh.kumar@email.com');
+      loginNomineeWithTarget(email || 'priya.k@email.com', password || 'password123', 'ramesh.kumar@email.com');
     }
   };
 
@@ -421,7 +524,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const switchRole = (role: UserRole) => {
     setActiveRole(role);
     if (role === 'primary') {
-      selectDemoProfile((activeDemoKey as any) || 'ramesh');
+      if (currentUser && !currentUser.isDemoUser) {
+        loginRegisteredUser(currentUser.id);
+      } else {
+        selectDemoProfile((activeDemoKey as any) || 'ramesh');
+      }
     } else {
       loginNomineeWithTarget('priya.k@email.com', 'demo', currentUser.email);
     }
@@ -430,13 +537,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateUserProfile = (updates: Partial<UserProfile>) => {
     setCurrentUser((prev) => {
       const updated = { ...prev, ...updates };
+      if (!updated.isDemoUser) {
+        StorageService.saveRegisteredAccount({
+          id: updated.id,
+          name: updated.name,
+          email: updated.email,
+          role: updated.role,
+          occupation: updated.occupation,
+          createdAt: new Date().toISOString(),
+          onboardingCompleted: updated.onboardingCompleted,
+        });
+        setRegisteredAccounts(StorageService.getRegisteredAccounts());
+      }
       return updated;
     });
     addActivity('Updated personal profile information', 'alert');
   };
 
   const completeOnboarding = () => {
-    setCurrentUser((prev) => ({ ...prev, onboardingCompleted: true }));
+    setCurrentUser((prev) => {
+      const updated = { ...prev, onboardingCompleted: true };
+      if (!updated.isDemoUser) {
+        StorageService.saveRegisteredAccount({
+          id: updated.id,
+          name: updated.name,
+          email: updated.email,
+          role: updated.role,
+          occupation: updated.occupation,
+          createdAt: new Date().toISOString(),
+          onboardingCompleted: true,
+        });
+        setRegisteredAccounts(StorageService.getRegisteredAccounts());
+      }
+      return updated;
+    });
     setShowOnboarding(false);
     addActivity('Completed 5-step financial legacy onboarding', 'discovery');
   };
@@ -910,6 +1044,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         logout,
         switchRole,
         updateUserProfile,
+        registeredUsers: registeredAccounts,
+        loginRegisteredUser,
+        deleteRegisteredUser,
         activeDemoKey,
         selectDemoProfile,
         showOnboarding,

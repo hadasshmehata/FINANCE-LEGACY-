@@ -31,6 +31,8 @@ export const Header: React.FC = () => {
     activeDemoKey,
     selectDemoProfile,
     setShowOnboarding,
+    registeredUsers,
+    loginRegisteredUser,
   } = useApp();
 
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -172,6 +174,35 @@ export const Header: React.FC = () => {
                   {currentUser.isDemoUser ? 'Demonstration Account' : 'Registered Account'}
                 </span>
               </div>
+
+              {/* Registered Real Accounts Switcher */}
+              {registeredUsers && registeredUsers.length > 0 && (
+                <div className="py-2 border-b border-[#1E3A5F] space-y-1">
+                  <p className="text-[10px] font-bold text-emerald-400 px-3 uppercase tracking-wider flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span>Registered Real Accounts</span>
+                  </p>
+                  {registeredUsers.map((reg) => (
+                    <button
+                      key={reg.id}
+                      onClick={() => {
+                        loginRegisteredUser(reg.id);
+                        setShowUserMenu(false);
+                      }}
+                      className={`w-full text-left px-3 py-1 rounded-lg text-xs flex items-center justify-between ${
+                        currentUser.id === reg.id && !currentUser.isDemoUser
+                          ? 'bg-emerald-500/20 text-emerald-300 font-bold'
+                          : 'text-slate-300 hover:bg-[#1E3A5F]'
+                      }`}
+                    >
+                      <span className="truncate">{reg.name} (Real)</span>
+                      {currentUser.id === reg.id && !currentUser.isDemoUser && (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* 4 Demo Profiles Switcher (Requirement 3) */}
               <div className="py-2 border-b border-[#1E3A5F] space-y-1">

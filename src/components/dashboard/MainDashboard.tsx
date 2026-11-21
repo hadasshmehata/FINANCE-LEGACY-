@@ -61,7 +61,25 @@ export const MainDashboard: React.FC = () => {
     addAsset,
     setShowOnboarding,
     selectDemoProfile,
+    familyMembers,
   } = useApp();
+
+  const bankingVal = assets.filter((a) => a.category === 'Banking').reduce((sum, a) => sum + a.estimatedValue, 0);
+  const investVal = assets.filter((a) => a.category === 'Investments' || a.category === 'Mutual Funds').reduce((sum, a) => sum + a.estimatedValue, 0);
+  const insuranceVal = assets.filter((a) => a.category === 'Insurance').reduce((sum, a) => sum + a.estimatedValue, 0);
+  const othersVal = assets.filter((a) => !['Banking', 'Investments', 'Mutual Funds', 'Insurance'].includes(a.category)).reduce((sum, a) => sum + a.estimatedValue, 0);
+  const totalValForChart = (bankingVal + investVal + insuranceVal + othersVal) || 1;
+
+  const bankingPct = assets.length ? Math.round((bankingVal / totalValForChart) * 100) : 0;
+  const investPct = assets.length ? Math.round((investVal / totalValForChart) * 100) : 0;
+  const insurancePct = assets.length ? Math.round((insuranceVal / totalValForChart) * 100) : 0;
+  const othersPct = assets.length ? Math.max(0, 100 - (bankingPct + investPct + insurancePct)) : 0;
+
+  const circ = 238.76;
+  const bLen = (bankingPct / 100) * circ;
+  const iLen = (investPct / 100) * circ;
+  const insLen = (insurancePct / 100) * circ;
+  const oLen = (othersPct / 100) * circ;
 
   // Format currency
   const formatINR = (val: number) => {
@@ -81,7 +99,7 @@ export const MainDashboard: React.FC = () => {
   const [showAddAssetModal, setShowAddAssetModal] = useState(false);
   const [newAssetName, setNewAssetName] = useState('');
   const [newAssetVal, setNewAssetVal] = useState('50000');
-  const [newAssetInst, setNewAssetInst] = useState('ABC Bank');
+  const [newAssetInst, setNewAssetInst] = useState('HDFC Bank');
 
   const triggerConfetti = () => {
     confetti({
@@ -117,7 +135,7 @@ export const MainDashboard: React.FC = () => {
       evidenceSource: 'Manual dashboard registration',
       confidenceScore: 95,
       verificationStatus: 'Verified',
-      nomineeName: 'Priya Kumar',
+      nomineeName: nomineeRequest.nomineeName || familyMembers.find((m) => m.isNominee)?.name || 'Designated Beneficiary',
       linkedDocumentIds: [],
     });
     triggerConfetti();
@@ -319,14 +337,58 @@ export const MainDashboard: React.FC = () => {
                 <div className="relative w-32 h-32 flex items-center justify-center flex-shrink-0">
                   <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                     <circle cx="50" cy="50" r="38" fill="transparent" stroke="#0B1E32" strokeWidth="14" />
-                    {/* Banking (40%) - Cyan */}
-                    <circle cx="50" cy="50" r="38" fill="transparent" stroke="#22D3EE" strokeWidth="14" strokeDasharray="95.5 143.2" strokeDashoffset="0" />
-                    {/* Investments (30%) - Purple */}
-                    <circle cx="50" cy="50" r="38" fill="transparent" stroke="#A855F7" strokeWidth="14" strokeDasharray="71.6 167.1" strokeDashoffset="-95.5" />
-                    {/* Insurance (20%) - Emerald */}
-                    <circle cx="50" cy="50" r="38" fill="transparent" stroke="#10B981" strokeWidth="14" strokeDasharray="47.7 191" strokeDashoffset="-167.1" />
-                    {/* Others (10%) - Amber */}
-                    <circle cx="50" cy="50" r="38" fill="transparent" stroke="#F59E0B" strokeWidth="14" strokeDasharray="23.9 214.8" strokeDashoffset="-214.8" />
+                    {/* Banking - Cyan */}
+                    {bankingPct > 0 && (
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        fill="transparent"
+                        stroke="#22D3EE"
+                        strokeWidth="14"
+                        strokeDasharray={`${bLen} ${circ - bLen}`}
+                        strokeDashoffset="0"
+                      />
+                    )}
+                    {/* Investments - Purple */}
+                    {investPct > 0 && (
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        fill="transparent"
+                        stroke="#A855F7"
+                        strokeWidth="14"
+                        strokeDasharray={`${iLen} ${circ - iLen}`}
+                        strokeDashoffset={-bLen}
+                      />
+                    )}
+                    {/* Insurance - Emerald */}
+                    {insurancePct > 0 && (
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        fill="transparent"
+                        stroke="#10B981"
+                        strokeWidth="14"
+                        strokeDasharray={`${insLen} ${circ - insLen}`}
+                        strokeDashoffset={-(bLen + iLen)}
+                      />
+                    )}
+                    {/* Others - Amber */}
+                    {othersPct > 0 && (
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        fill="transparent"
+                        stroke="#F59E0B"
+                        strokeWidth="14"
+                        strokeDasharray={`${oLen} ${circ - oLen}`}
+                        strokeDashoffset={-(bLen + iLen + insLen)}
+                      />
+                    )}
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
                     <span className="text-base font-extrabold text-white">
@@ -345,28 +407,28 @@ export const MainDashboard: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#22D3EE]" />
                     <span className="text-slate-300">Banking</span>
-                    <span className="font-bold text-white ml-auto">40%</span>
+                    <span className="font-bold text-white ml-auto">{bankingPct}%</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#A855F7]" />
                     <span className="text-slate-300">Investments</span>
-                    <span className="font-bold text-white ml-auto">30%</span>
+                    <span className="font-bold text-white ml-auto">{investPct}%</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
                     <span className="text-slate-300">Insurance</span>
-                    <span className="font-bold text-white ml-auto">20%</span>
+                    <span className="font-bold text-white ml-auto">{insurancePct}%</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />
                     <span className="text-slate-300">Others</span>
-                    <span className="font-bold text-white ml-auto">10%</span>
+                    <span className="font-bold text-white ml-auto">{othersPct}%</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Line Chart (Jan-Jun with 72% peak badge) */}
+            {/* Line Chart (Jan-Jun with recovery progress badge) */}
             <div className="bg-[#10283D] border border-[#1E3A5F] rounded-3xl p-4 sm:p-5 shadow-card flex flex-col justify-between">
               <div className="flex items-center justify-between mb-1">
                 <h3 className="text-xs font-bold text-white flex items-center gap-2">
@@ -374,7 +436,7 @@ export const MainDashboard: React.FC = () => {
                   Recovery Progress
                 </h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300">
-                  72%
+                  {recoveryProgress}%
                 </span>
               </div>
 
@@ -417,18 +479,24 @@ export const MainDashboard: React.FC = () => {
                   AI Recommendations
                 </h3>
                 <div className="space-y-2 text-xs">
-                  <div className="flex items-center gap-2 text-slate-200">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                    <span>Verify EPF account</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-200">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                    <span>Check missing insurance policy</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-200">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                    <span>Update nominee details</span>
-                  </div>
+                  {gaps.filter(g => !g.resolved).slice(0, 3).map((gap) => (
+                    <div key={gap.id} className="flex items-center gap-2 text-slate-200">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                      <span className="truncate">{gap.title}</span>
+                    </div>
+                  ))}
+                  {gaps.filter(g => !g.resolved).length === 0 && (
+                    <>
+                      <div className="flex items-center gap-2 text-slate-200">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                        <span>All priority gaps addressed</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-200">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                        <span>Nominee permissions verified</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
               <div className="pt-3 border-t border-[#1E3A5F] mt-3 flex justify-end">
@@ -717,15 +785,27 @@ export const MainDashboard: React.FC = () => {
             <div className="space-y-2 text-[11px] mb-3">
               <div className="p-1.5 rounded-lg bg-[#061525] border border-[#1E3A5F]">
                 <span className="text-[9px] text-slate-400 block">Previous Employer:</span>
-                <span className="font-semibold text-white truncate block">ABC Technologies</span>
+                <span className="font-semibold text-white truncate block">
+                  {footprint.previousEmployers && footprint.previousEmployers.length > 0
+                    ? footprint.previousEmployers.join(', ')
+                    : 'None recorded'}
+                </span>
               </div>
               <div className="p-1.5 rounded-lg bg-[#061525] border border-[#1E3A5F]">
                 <span className="text-[9px] text-slate-400 block">Known Banks:</span>
-                <span className="font-semibold text-cyan-300 truncate block">HDFC, SBI</span>
+                <span className="font-semibold text-cyan-300 truncate block">
+                  {footprint.knownBanks && footprint.knownBanks.length > 0
+                    ? footprint.knownBanks.join(', ')
+                    : 'None recorded'}
+                </span>
               </div>
               <div className="p-1.5 rounded-lg bg-[#061525] border border-[#1E3A5F]">
                 <span className="text-[9px] text-slate-400 block">Previous Addresses:</span>
-                <span className="font-semibold text-slate-300 truncate block">Mumbai, Delhi</span>
+                <span className="font-semibold text-slate-300 truncate block">
+                  {footprint.previousAddresses && footprint.previousAddresses.length > 0
+                    ? footprint.previousAddresses.join(', ')
+                    : 'None recorded'}
+                </span>
               </div>
             </div>
 
@@ -772,29 +852,41 @@ export const MainDashboard: React.FC = () => {
             <p className="text-[10px] text-slate-400 mb-3">Identify missing financial connections.</p>
 
             <div className="space-y-2 text-[11px]">
-              <div className="p-2 rounded-xl bg-[#061525] border border-red-500/30">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="font-bold text-white">EPF Info Missing</span>
-                  <span className="text-[9px] font-bold text-red-400 bg-red-500/20 px-1.5 py-0.2 rounded">High</span>
+              {gaps.length > 0 ? (
+                gaps.slice(0, 3).map((gap) => (
+                  <div
+                    key={gap.id}
+                    className={`p-2 rounded-xl bg-[#061525] border ${
+                      gap.priority === 'High'
+                        ? 'border-red-500/30'
+                        : gap.priority === 'Medium'
+                        ? 'border-amber-500/30'
+                        : 'border-cyan-500/30'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="font-bold text-white truncate">{gap.title}</span>
+                      <span
+                        className={`text-[9px] font-bold px-1.5 py-0.2 rounded uppercase ${
+                          gap.priority === 'High'
+                            ? 'text-red-400 bg-red-500/20'
+                            : gap.priority === 'Medium'
+                            ? 'text-amber-400 bg-amber-500/20'
+                            : 'text-cyan-400 bg-cyan-500/20'
+                        }`}
+                      >
+                        {gap.priority}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-tight truncate">{gap.explanation}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="p-3 rounded-xl bg-[#061525] border border-emerald-500/30 text-center">
+                  <p className="text-xs text-emerald-400 font-medium">All financial gaps resolved</p>
+                  <p className="text-[10px] text-slate-400 mt-1">No missing connections detected.</p>
                 </div>
-                <p className="text-[10px] text-slate-400 leading-tight">Previous employment found, no EPF docs.</p>
-              </div>
-
-              <div className="p-2 rounded-xl bg-[#061525] border border-amber-500/30">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="font-bold text-white">Insurance Policy Missing</span>
-                  <span className="text-[9px] font-bold text-amber-400 bg-amber-500/20 px-1.5 py-0.2 rounded">Medium</span>
-                </div>
-                <p className="text-[10px] text-slate-400 leading-tight">Recurring payments detected in statement.</p>
-              </div>
-
-              <div className="p-2 rounded-xl bg-[#061525] border border-cyan-500/30">
-                <div className="flex items-center justify-between mb-0.5">
-                  <span className="font-bold text-white">FD Maturity Details</span>
-                  <span className="text-[9px] font-bold text-cyan-400 bg-cyan-500/20 px-1.5 py-0.2 rounded">Info</span>
-                </div>
-                <p className="text-[10px] text-slate-400 leading-tight">Fixed deposit reference found in 26AS.</p>
-              </div>
+              )}
             </div>
           </div>
 
@@ -972,27 +1064,47 @@ export const MainDashboard: React.FC = () => {
             <p className="text-[10px] text-slate-400 mb-4">Secure access for your nominated family member.</p>
 
             <div className="p-3 rounded-2xl bg-[#061525] border border-[#1E3A5F] mb-4 text-center">
-              <Clock className="w-5 h-5 text-amber-400 mx-auto mb-1 animate-pulse" />
+              {nomineeRequest.status === 'Access Approved' || (nomineeRequest.status as string) === 'Approved' ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 mx-auto mb-1" />
+              ) : nomineeRequest.status === 'Access Rejected' ? (
+                <ShieldAlert className="w-5 h-5 text-red-400 mx-auto mb-1" />
+              ) : (
+                <Clock className="w-5 h-5 text-amber-400 mx-auto mb-1 animate-pulse" />
+              )}
               <div className="text-[10px] text-slate-400 uppercase">Access Request Status</div>
-              <div className="text-xs font-bold text-amber-400">
-                {nomineeRequest.status}
+              <div className={`text-xs font-bold ${
+                nomineeRequest.status === 'Access Approved' || (nomineeRequest.status as string) === 'Approved'
+                  ? 'text-emerald-400'
+                  : nomineeRequest.status === 'Access Rejected'
+                  ? 'text-red-400'
+                  : 'text-amber-400'
+              }`}>
+                {nomineeRequest.nomineeName ? nomineeRequest.status : 'No Nominee Set'}
               </div>
             </div>
 
             <p className="text-[11px] text-slate-300 mb-4 text-center">
-              Upload required documents to proceed.
+              {nomineeRequest.status === 'Approved'
+                ? 'Nominee access verified & active.'
+                : nomineeRequest.nomineeName
+                ? 'Verification documents in review.'
+                : 'Designate a trusted nominee to safeguard assets.'}
             </p>
 
             <button
               onClick={() => setActiveTab('nominee')}
               className="w-full py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 text-slate-950 font-bold text-xs uppercase tracking-wider shadow-glow-emerald"
             >
-              Upload Documents
+              {nomineeRequest.nomineeName ? 'Manage Nominee' : 'Designate Nominee'}
             </button>
           </div>
 
           <div className="pt-3 border-t border-[#1E3A5F] mt-4 flex items-center justify-between text-[11px]">
-            <span className="text-slate-400">Priya Kumar (Spouse)</span>
+            <span className="text-slate-400 truncate max-w-[150px]">
+              {nomineeRequest.nomineeName
+                ? `${nomineeRequest.nomineeName} (${nomineeRequest.relationship || 'Nominee'})`
+                : 'No Nominee Designated'}
+            </span>
             <button onClick={() => setActiveTab('nominee')} className="text-cyan-400 font-bold">
               Details →
             </button>

@@ -36,18 +36,18 @@ export const redactSensitivePII = (text: string): { sanitized: string; maskedCou
     return `${p1}****${p3}`;
   });
 
+  // UAN (12 digits starting with 10) -> 1012****8829 (runs before Aadhaar to avoid prefix collision)
+  const uanRegex = /\b(10\d{2})\d{4}(\d{4})\b/g;
+  sanitized = sanitized.replace(uanRegex, (_match, prefix, suffix) => {
+    masked++;
+    return `${prefix}****${suffix}`;
+  });
+
   // Indian Aadhaar (12 digits, optional spaces) -> XXXX-XXXX-1234
   const aadhaarRegex = /\b\d{4}[\s-]?\d{4}[\s-]?(\d{4})\b/g;
   sanitized = sanitized.replace(aadhaarRegex, (_match, last4) => {
     masked++;
     return `XXXX-XXXX-${last4}`;
-  });
-
-  // UAN (12 digits starting with 10) -> 1012****8829
-  const uanRegex = /\b(10\d{2})\d{4}(\d{4})\b/g;
-  sanitized = sanitized.replace(uanRegex, (_match, prefix, suffix) => {
-    masked++;
-    return `${prefix}****${suffix}`;
   });
 
   // Bank Account Numbers (9 to 18 digits) -> XXXXXX1234
@@ -61,7 +61,7 @@ export const redactSensitivePII = (text: string): { sanitized: string; maskedCou
 };
 
 export const DocumentScanner: React.FC = () => {
-  const { uploadDocument, documents, addAsset, setActiveTab } = useApp();
+  const { uploadDocument, documents, addAsset, setActiveTab, footprint } = useApp();
 
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory>('Bank Statements');
   const [isDragging, setIsDragging] = useState(false);
@@ -147,10 +147,14 @@ export const DocumentScanner: React.FC = () => {
       const rawRef = '987654' + Math.floor(1000 + Math.random() * 9000);
       const maskedRef = enablePiiRedaction ? redactSensitivePII(rawRef).sanitized : rawRef;
 
+      const matchedEmployer = (footprint && footprint.previousEmployers && footprint.previousEmployers.length > 0)
+        ? footprint.previousEmployers[0].split('(')[0].trim()
+        : 'Previous Establishment';
+
       setActiveExtractedResult({
         fileName,
         category,
-        institution: category === 'EPF Records' || category === 'Salary Slips' ? 'EPFO India / ABC Tech' : category === 'Insurance Policies' ? 'LIC of India' : 'HDFC Bank',
+        institution: category === 'EPF Records' || category === 'Salary Slips' ? `EPFO India / ${matchedEmployer}` : category === 'Insurance Policies' ? 'LIC of India' : 'HDFC Bank',
         potentialAsset: category === 'EPF Records' || category === 'Salary Slips' ? 'Provident Fund Corpus (₹42,500)' : category === 'Insurance Policies' ? 'Matured Endowment Policy (₹1,50,000)' : 'Dormant Savings A/C (₹45,000)',
         value: category === 'EPF Records' || category === 'Salary Slips' ? 42500 : category === 'Insurance Policies' ? 150000 : 45000,
         accountRef: maskedRef,

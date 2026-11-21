@@ -262,7 +262,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
 
   const readinessScore = assets.length === 0 ? 0 : Math.min(100, Math.round((verifiedAssetsCount / (assets.length || 1)) * 92));
-  const recoveryProgress = claims.length === 0 ? 0 : 72;
+  const recoveryProgress =
+    claims.length === 0
+      ? 0
+      : Math.round(
+          claims.reduce(
+            (sum, c) =>
+              sum +
+              (c.progressPercentage ||
+                (c.currentStage === 'Recovered'
+                  ? 100
+                  : c.currentStage === 'Recovery Pending'
+                  ? 80
+                  : c.currentStage === 'Under Verification'
+                  ? 60
+                  : c.currentStage === 'Claim Submitted'
+                  ? 40
+                  : 20)),
+            0
+          ) / claims.length
+        );
 
   // ==========================================
   // PROFILE SWITCHING (ISOLATED DATASETS)
@@ -862,34 +881,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateClaimStage = (id: string, stage: ClaimStage) => {
+    const stageOrder: ClaimStage[] = [
+      'Asset Discovered',
+      'Verification Complete',
+      'Claim Submitted',
+      'Under Verification',
+      'Recovery Pending',
+      'Recovered',
+    ];
+    const targetIdx = stageOrder.indexOf(stage);
+
     setClaims((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              currentStage: stage,
-              progressPercentage:
-                stage === 'Recovered'
-                  ? 100
-                  : stage === 'Recovery Pending'
-                  ? 85
-                  : stage === 'Under Verification'
-                  ? 65
-                  : stage === 'Claim Submitted'
-                  ? 50
-                  : 30,
-              history: [
-                ...c.history,
-                {
-                  stage,
-                  date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                  description: `Advanced to ${stage}`,
-                  completed: true,
-                },
-              ],
-            }
-          : c
-      )
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        const existingStages = c.history.map((h) => h.stage);
+        const updatedHistory = c.history.map((h) => {
+          const hIdx = stageOrder.indexOf(h.stage);
+          return {
+            ...h,
+            completed: hIdx <= targetIdx,
+            date: hIdx === targetIdx ? 'Today' : h.date === 'Pending' && hIdx < targetIdx ? 'Completed' : h.date,
+          };
+        });
+
+        if (!existingStages.includes(stage)) {
+          updatedHistory.push({
+            stage,
+            date: 'Today',
+            description: `Advanced to ${stage}`,
+            completed: true,
+          });
+        }
+
+        return {
+          ...c,
+          currentStage: stage,
+          progressPercentage:
+            stage === 'Recovered'
+              ? 100
+              : stage === 'Recovery Pending'
+              ? 85
+              : stage === 'Under Verification'
+              ? 65
+              : stage === 'Claim Submitted'
+              ? 50
+              : 30,
+          history: updatedHistory,
+        };
+      })
     );
     addActivity(`Claim advanced to stage: ${stage}`, 'claim');
   };

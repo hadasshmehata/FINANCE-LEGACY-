@@ -31,6 +31,8 @@ export const AssetDiscovery: React.FC = () => {
     setActiveTab,
     addClaim,
     searchQuery,
+    nomineeRequest,
+    familyMembers,
   } = useApp();
 
   const [filterCategory, setFilterCategory] = useState<string>('All');
@@ -93,6 +95,7 @@ export const AssetDiscovery: React.FC = () => {
 
   const handleCreateAsset = (e: React.FormEvent) => {
     e.preventDefault();
+    const defaultNominee = nomineeRequest.nomineeName || familyMembers.find((m) => m.isNominee)?.name || 'Designated Beneficiary';
     addAsset({
       name: formName,
       category: formCategory,
@@ -102,7 +105,7 @@ export const AssetDiscovery: React.FC = () => {
       evidenceSource: formEvidence || 'User self-reported registration',
       confidenceScore: formConfidence,
       verificationStatus: 'Unverified',
-      nomineeName: formNominee || 'Priya Kumar',
+      nomineeName: formNominee || defaultNominee,
       linkedDocumentIds: [],
     });
     setShowAddModal(false);
@@ -112,6 +115,7 @@ export const AssetDiscovery: React.FC = () => {
     setFormValue('');
     setFormAccountRef('');
     setFormEvidence('');
+    setFormNominee('');
   };
 
   const handleStartClaimFromAsset = (asset: FinancialAsset) => {
@@ -439,6 +443,21 @@ export const AssetDiscovery: React.FC = () => {
                     className="w-full bg-[#061525] border border-[#1E3A5F] focus:border-emerald-500 rounded-xl px-3 py-2 text-white outline-none"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Designated Nominee</label>
+                <input
+                  type="text"
+                  value={formNominee}
+                  onChange={(e) => setFormNominee(e.target.value)}
+                  placeholder={
+                    nomineeRequest.nomineeName
+                      ? `Default: ${nomineeRequest.nomineeName}`
+                      : 'e.g. Designated Nominee'
+                  }
+                  className="w-full bg-[#061525] border border-[#1E3A5F] focus:border-emerald-500 rounded-xl px-3 py-2 text-white outline-none"
+                />
               </div>
 
               <div>

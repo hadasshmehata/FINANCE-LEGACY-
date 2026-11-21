@@ -18,10 +18,11 @@ export const ClaimLetterGenerator: React.FC = () => {
 
   const [selectedAssetId, setSelectedAssetId] = useState<string>(assets[0]?.id || '');
   const activeAsset = assets.find(a => a.id === selectedAssetId) || assets[0];
+  const defaultBankInst = activeAsset?.institution || 'Primary Bank';
 
   const [templateType, setTemplateType] = useState<'bank' | 'epfo' | 'insurance' | 'mf'>('bank');
   const [recipient, setRecipient] = useState(
-    'The Branch Manager, ABC Bank, Connaught Place Branch, New Delhi - 110001'
+    `The Branch Manager, ${defaultBankInst}, Main Branch`
   );
   const [subject, setSubject] = useState(
     'Request for Reactivation and Disbursement of Balance in Inoperative Savings Account'
@@ -31,7 +32,7 @@ export const ClaimLetterGenerator: React.FC = () => {
     const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     const userPhone = currentUser.phone || '+91 98765 43210';
     const userEmail = currentUser.email;
-    const assetInst = targetAsset?.institution || (type === 'bank' ? 'ABC Bank' : type === 'insurance' ? 'HDFC Life' : 'EPFO');
+    const assetInst = targetAsset?.institution || (type === 'bank' ? defaultBankInst : type === 'insurance' ? 'HDFC Life' : 'EPFO');
     const assetRef = targetAsset?.maskedAccountRef || 'XXXXXX4821';
     const assetVal = targetAsset ? `₹${targetAsset.estimatedValue.toLocaleString('en-IN')}` : '₹1,25,000';
 

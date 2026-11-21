@@ -14,51 +14,85 @@ import {
 import { useApp } from '../../context/AppContext';
 
 export const LegacyScoreView: React.FC = () => {
-  const { legacyScore, assets, claims, documents, gaps, nomineeRequest, setActiveTab } = useApp();
+  const {
+    legacyScore,
+    assets,
+    claims,
+    documents,
+    gaps,
+    nomineeRequest,
+    recoveryProgress,
+    setActiveTab,
+  } = useApp();
+
+  const docScore = documents.length > 0
+    ? Math.min(100, Math.round((documents.filter((d) => d.analyzed).length / documents.length) * 40 + 60))
+    : 70;
+
+  const assetScore = assets.length > 0
+    ? Math.min(100, Math.round((assets.filter((a) => a.verificationStatus === 'Verified').length / assets.length) * 40 + 60))
+    : 70;
+
+  const claimScore = claims.length > 0
+    ? Math.min(100, Math.round(recoveryProgress > 0 ? recoveryProgress : 75))
+    : 70;
+
+  const resolvedGaps = gaps.filter((g) => g.resolved).length;
+  const gapScore = gaps.length > 0
+    ? Math.round((resolvedGaps / gaps.length) * 100)
+    : 100;
+
+  const nomineeScore = nomineeRequest.nomineeName
+    ? (nomineeRequest.status === 'Approved' ? 95 : 85)
+    : 40;
+
+  const topClaimInst = claims[0]?.institution || assets[0]?.institution || 'financial institution';
 
   const factors = [
     {
       title: 'Document Organization',
-      score: 95,
+      score: docScore,
       weight: '25%',
       detail: `${documents.length} verified documents categorized and indexed in vault.`,
-      status: 'Excellent',
+      status: docScore >= 90 ? 'Excellent' : docScore >= 75 ? 'Good' : 'Needs Action',
       icon: FileText,
       color: 'text-emerald-400',
     },
     {
       title: 'Asset Discovery & Matching',
-      score: 92,
+      score: assetScore,
       weight: '25%',
       detail: `${assets.length} financial assets discovered via AI footprint and tax clues.`,
-      status: 'High',
+      status: assetScore >= 90 ? 'High' : assetScore >= 75 ? 'Moderate' : 'Needs Action',
       icon: Coins,
       color: 'text-cyan-400',
     },
     {
       title: 'Claim Pipeline Readiness',
-      score: 94,
+      score: claimScore,
       weight: '20%',
       detail: `${claims.length} claims tracked with regulatory follow-up dates.`,
-      status: 'Optimal',
+      status: claimScore >= 80 ? 'Optimal' : 'In Progress',
       icon: FileCheck,
       color: 'text-emerald-400',
     },
     {
       title: 'Gap Intelligence Resolution',
-      score: 85,
+      score: gapScore,
       weight: '15%',
-      detail: `${gaps.filter(g => g.resolved).length} of ${gaps.length} financial gaps addressed.`,
-      status: 'Needs Action',
+      detail: `${resolvedGaps} of ${gaps.length} financial gaps addressed.`,
+      status: gapScore >= 90 ? 'Strong' : gapScore >= 60 ? 'Moderate' : 'Needs Action',
       icon: AlertTriangle,
       color: 'text-amber-400',
     },
     {
       title: 'Nominee Succession Safeguard',
-      score: 90,
+      score: nomineeScore,
       weight: '15%',
-      detail: `Nominee (${nomineeRequest.nomineeName}) designated with encrypted permissions.`,
-      status: 'Strong',
+      detail: nomineeRequest.nomineeName
+        ? `Nominee (${nomineeRequest.nomineeName}) designated with encrypted permissions.`
+        : 'No nominee designated yet. Add family nominee to protect succession.',
+      status: nomineeScore >= 90 ? 'Strong' : nomineeScore >= 70 ? 'Pending Verification' : 'Incomplete',
       icon: Users,
       color: 'text-purple-400',
     },
@@ -193,7 +227,7 @@ export const LegacyScoreView: React.FC = () => {
                   <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded-full">+2 Pts</span>
                 </div>
                 <p className="text-[11px] text-slate-400 group-hover:text-slate-300">
-                  Submit the generated claim application to ABC Bank Connaught Place branch.
+                  Submit the generated claim application to {topClaimInst} branch.
                 </p>
               </div>
             </div>

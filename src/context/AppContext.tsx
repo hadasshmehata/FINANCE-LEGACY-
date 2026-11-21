@@ -101,6 +101,9 @@ interface AppContextType {
 
   // Nominee Portal
   nomineeRequest: NomineeRequest;
+  nomineeAccessError: string | null;
+  clearNomineeAccessError: () => void;
+  activeAssetOwnerId: string | null;
   updateNomineeStatus: (status: NomineeAccessStatus) => void;
   uploadDeathCertificate: (details: any) => void;
   uploadRelationshipProof: (details: any) => void;
@@ -171,6 +174,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [registeredAccounts, setRegisteredAccounts] = useState<RegisteredAccount[]>(() =>
     StorageService.getRegisteredAccounts()
   );
+  const [nomineeAccessError, setNomineeAccessError] = useState<string | null>(null);
+  const [activeAssetOwnerId, setActiveAssetOwnerId] = useState<string | null>(() => initialSettings.activeUserId || null);
+  const clearNomineeAccessError = () => setNomineeAccessError(null);
 
   const [isAnalyzingFootprint, setIsAnalyzingFootprint] = useState(false);
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -194,6 +200,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (isSwitchingProfileRef.current) return;
     if (!currentUser || !currentUser.id) return;
+    if (currentUser.role === 'nominee') return;
 
     StorageService.saveProfileData(currentUser.id, {
       user: currentUser,
@@ -284,6 +291,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveRole('primary');
     setIsAuthenticated(true);
     setShowOnboarding(false);
+    setActiveAssetOwnerId(targetUserId);
+    setNomineeAccessError(null);
 
     // Save active settings
     StorageService.saveSettings({
@@ -323,6 +332,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveRole(profileData.user.role || 'primary');
     setIsAuthenticated(true);
     setActiveDemoKey('custom');
+    setActiveAssetOwnerId(userId);
+    setNomineeAccessError(null);
 
     StorageService.saveSettings({
       activeDemoKey: 'custom',
@@ -402,6 +413,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveRole(role);
     setIsAuthenticated(true);
     setActiveDemoKey('custom');
+    setActiveAssetOwnerId(newUserId);
+    setNomineeAccessError(null);
 
     StorageService.saveSettings({
       activeDemoKey: 'custom',
@@ -423,50 +436,135 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Nominee Login with Target User Verification workflow
   const loginNomineeWithTarget = (nomineeEmail: string, nomineePassword: string, targetUserEmail: string) => {
-    let targetName = 'Ramesh Kumar';
-    let targetProfile = demoRamesh;
+    isSwitchingProfileRef.current = true;
+    const cleanNomEmail = (nomineeEmail || '').trim().toLowerCase();
+    const cleanTargetEmail = (targetUserEmail || '').trim().toLowerCase();
 
-    if (targetUserEmail.toLowerCase().includes('priya.sharma') || targetUserEmail.toLowerCase().includes('priya')) {
-      targetName = 'Priya Sharma';
-      targetProfile = demoPriya;
-    } else if (targetUserEmail.toLowerCase().includes('arjun')) {
-      targetName = 'Arjun Reddy';
-      targetProfile = demoArjun;
-    } else if (targetUserEmail.toLowerCase().includes('meera')) {
-      targetName = 'Meera Patel';
-      targetProfile = demoMeera;
-    }
+    // Find verified relationship using StorageService
+    const relationship = StorageService.findNomineeRelationship(cleanNomEmail, cleanTargetEmail);
 
-    const nomineeUser: UserProfile = {
-      id: `usr_nom_${Date.now()}`,
-      name: nomineeEmail.split('@')[0],
-      email: nomineeEmail,
-      role: 'nominee',
-      isDemoUser: true,
-      onboardingCompleted: true,
-      biometricRegistered: true,
-    };
+    if (relationship) {
+      const { ownerAccount, ownerData, nomineeMember } = relationship;
+      setActiveAssetOwnerId(ownerAccount.id);
+      setNomineeAccessError(null);
 
-    setCurrentUser(nomineeUser);
-    setActiveRole('nominee');
-    setIsAuthenticated(true);
+      const nomineeUser: UserProfile = {
+        id: `usr_nom_${nomineeMember.email.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        name: nomineeMember.name || cleanNomEmail.split('@')[0],
+        email: cleanNomEmail,
+        role: 'nominee',
+        isDemoUser: !!ownerAccount.isDemoUser,
+        onboardingCompleted: true,
+        biometricRegistered: true,
+      };
 
-    if (targetProfile.nomineeRequest.status === 'Access Approved') {
-      setAssets(targetProfile.assets);
-      setClaims(targetProfile.claims);
+      setCurrentUser(nomineeUser);
+      setActiveRole('nominee');
+      setIsAuthenticated(true);
+
+      const currentReq = ownerData.nomineeRequest || {};
+      const updatedReq: NomineeRequest = {
+        id: currentReq.id || `nom_req_${ownerAccount.id}`,
+        nomineeName: nomineeMember.name || currentReq.nomineeName || cleanNomEmail.split('@')[0],
+        nomineeEmail: nomineeMember.email || currentReq.nomineeEmail || cleanNomEmail,
+        relationship: nomineeMember.relationship || currentReq.relationship || 'Nominee',
+        targetUserEmail: ownerAccount.email,
+        targetUserName: ownerAccount.name,
+        status: nomineeMember.status || currentReq.status || 'Verification Pending',
+        requestDate: currentReq.requestDate || 'Today',
+        approvedDate: currentReq.approvedDate,
+        deathCertificateUploaded: currentReq.deathCertificateUploaded ?? false,
+        deathCertificateDetails: currentReq.deathCertificateDetails,
+        relationshipProofUploaded: currentReq.relationshipProofUploaded ?? false,
+        relationshipProofDetails: currentReq.relationshipProofDetails,
+        biometricVerified: currentReq.biometricVerified ?? false,
+        permittedAssetCategories: nomineeMember.permittedCategories || currentReq.permittedAssetCategories || ['Banking', 'EPF', 'Insurance'],
+      };
+
+      setNomineeRequest(updatedReq);
+
+      if (updatedReq.status === 'Access Approved') {
+        setAssets(ownerData.assets || []);
+        setClaims(ownerData.claims || []);
+      } else {
+        setAssets([]);
+        setClaims([]);
+      }
+
+      setDocuments(ownerData.documents || []);
+      setGaps(ownerData.gaps || []);
+      setFootprint(ownerData.footprint || {
+        previousEmployers: [],
+        knownBanks: [],
+        previousAddresses: [],
+        knownInsurance: [],
+        investments: [],
+        phoneEmailClues: [],
+        potentialConnections: [],
+      });
+      setFamilyMembers(ownerData.familyMembers || []);
+      setActivities(ownerData.activities || []);
+      setMessages(ownerData.chatMessages || []);
+      setClaimLetters(ownerData.claimLetters || []);
+      setFraudScans(ownerData.fraudScans || []);
+
+      StorageService.saveSettings({
+        activeDemoKey: ownerAccount.isDemoUser ? activeDemoKey : 'custom',
+        activeRole: 'nominee',
+        isAuthenticated: true,
+        activeUserId: ownerAccount.id,
+      });
+
+      setTimeout(() => {
+        isSwitchingProfileRef.current = false;
+      }, 100);
+
+      addActivity(`Nominee ${nomineeMember.name} authenticated for estate of ${ownerAccount.name}. Status: ${updatedReq.status}`, 'verification');
     } else {
+      // No linked asset owner found! Do NOT fall back to Ramesh Kumar demo data
+      setActiveAssetOwnerId(null);
+      const targetNotice = cleanTargetEmail ? ` for asset owner "${cleanTargetEmail}"` : '';
+      setNomineeAccessError(`No linked asset owner found for nominee email "${cleanNomEmail}"${targetNotice}. Please ensure the asset owner has designated this email in their Family & Nominee Registry.`);
+
+      const unlinkedUser: UserProfile = {
+        id: `usr_nom_${Date.now()}`,
+        name: cleanNomEmail.split('@')[0],
+        email: cleanNomEmail,
+        role: 'nominee',
+        isDemoUser: false,
+        onboardingCompleted: true,
+        biometricRegistered: false,
+      };
+
+      setCurrentUser(unlinkedUser);
+      setActiveRole('nominee');
+      setIsAuthenticated(true);
       setAssets([]);
       setClaims([]);
+      setDocuments([]);
+      setGaps([]);
+      setFamilyMembers([]);
+      setNomineeRequest({
+        id: `nom_req_unlinked`,
+        nomineeName: cleanNomEmail.split('@')[0],
+        nomineeEmail: cleanNomEmail,
+        relationship: '',
+        targetUserEmail: cleanTargetEmail,
+        targetUserName: '',
+        status: 'Documents Required',
+        requestDate: 'Today',
+        deathCertificateUploaded: false,
+        relationshipProofUploaded: false,
+        biometricVerified: false,
+        permittedAssetCategories: [],
+      });
+
+      setTimeout(() => {
+        isSwitchingProfileRef.current = false;
+      }, 100);
+
+      addActivity(`Nominee access denied: No authorized relationship found for ${cleanNomEmail}`, 'alert');
     }
-
-    setNomineeRequest({
-      ...targetProfile.nomineeRequest,
-      nomineeEmail,
-      targetUserEmail,
-      targetUserName: targetName,
-    });
-
-    addActivity(`Nominee logged in: ${nomineeEmail}. Status: ${targetProfile.nomineeRequest.status}`, 'alert');
   };
 
   const login = (role: UserRole, email?: string, password?: string) => {
@@ -507,7 +605,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
     } else {
-      loginNomineeWithTarget(email || 'priya.k@email.com', password || 'password123', 'ramesh.kumar@email.com');
+      // Nominee Login
+      const cleanNomEmail = (email || '').trim().toLowerCase();
+      const rel = StorageService.findNomineeRelationship(cleanNomEmail);
+      if (rel) {
+        loginNomineeWithTarget(cleanNomEmail, password || 'password123', rel.ownerAccount.email);
+      } else {
+        loginNomineeWithTarget(cleanNomEmail, password || 'password123', '');
+      }
     }
   };
 
@@ -524,13 +629,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const switchRole = (role: UserRole) => {
     setActiveRole(role);
     if (role === 'primary') {
-      if (currentUser && !currentUser.isDemoUser) {
+      const targetOwnerId = activeAssetOwnerId || currentUser.id;
+      const isReal = StorageService.getRegisteredAccounts().some((a) => a.id === targetOwnerId);
+      if (isReal) {
+        loginRegisteredUser(targetOwnerId);
+      } else if (!currentUser.isDemoUser && currentUser.id.startsWith('usr_real_')) {
         loginRegisteredUser(currentUser.id);
       } else {
         selectDemoProfile((activeDemoKey as any) || 'ramesh');
       }
     } else {
-      loginNomineeWithTarget('priya.k@email.com', 'demo', currentUser.email);
+      // Switching to Nominee View
+      const targetOwnerId = activeAssetOwnerId || currentUser.id;
+      const ownerAccount = StorageService.getRegisteredAccounts().find((a) => a.id === targetOwnerId);
+      const ownerData = StorageService.loadProfileData(targetOwnerId);
+
+      const designatedNominee = (ownerData.familyMembers || []).find((m) => m.isNominee) ||
+        (ownerData.nomineeRequest?.nomineeEmail ? {
+          name: ownerData.nomineeRequest.nomineeName,
+          email: ownerData.nomineeRequest.nomineeEmail,
+        } : null);
+
+      if (designatedNominee && designatedNominee.email) {
+        loginNomineeWithTarget(designatedNominee.email, 'password123', ownerAccount ? ownerAccount.email : currentUser.email);
+      } else {
+        setActiveAssetOwnerId(currentUser.id);
+        const ownerDisplayName = currentUser.name || (ownerAccount ? ownerAccount.name : 'Asset Owner');
+        setNomineeAccessError(`No nominee has been designated for ${ownerDisplayName}'s account yet. Please add a family member as an Official Nominee in the Family & Nominee Registry below.`);
+        setCurrentUser({
+          id: `usr_nom_view_${currentUser.id}`,
+          name: 'Nominee View',
+          email: `nominee@${currentUser.email.split('@')[1] || 'financelegacy.local'}`,
+          role: 'nominee',
+          isDemoUser: currentUser.isDemoUser,
+          onboardingCompleted: true,
+        });
+        setAssets([]);
+        setClaims([]);
+        setNomineeRequest({
+          id: `nom_req_${currentUser.id}`,
+          nomineeName: '',
+          nomineeEmail: '',
+          relationship: '',
+          targetUserEmail: currentUser.email,
+          targetUserName: ownerDisplayName,
+          status: 'Documents Required',
+          requestDate: 'Today',
+          deathCertificateUploaded: false,
+          relationshipProofUploaded: false,
+          biometricVerified: false,
+          permittedAssetCategories: [],
+        });
+      }
     }
   };
 
@@ -583,6 +733,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       invitationSentDate: 'Today',
     };
     setFamilyMembers((prev) => [...prev, newMember]);
+
+    if (newMember.isNominee) {
+      const updatedReqUpdates: Partial<NomineeRequest> = {
+        nomineeName: newMember.name,
+        nomineeEmail: newMember.email,
+        relationship: newMember.relationship,
+        targetUserName: currentUser.name,
+        targetUserEmail: currentUser.email,
+        permittedAssetCategories: newMember.accessPermissions,
+        status: newMember.verificationStatus,
+      };
+      setNomineeRequest((prev) => ({
+        ...prev,
+        ...updatedReqUpdates,
+      }));
+      const ownerId = activeAssetOwnerId || currentUser.id;
+      if (ownerId) {
+        StorageService.updateNomineeRequestForOwner(ownerId, updatedReqUpdates);
+      }
+    }
     addActivity(`Added family member: ${newMember.name} (${newMember.relationship})`, 'alert');
   };
 
@@ -602,6 +772,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'Access Approved',
       approvedDate: 'Today',
     }));
+    const ownerId = activeAssetOwnerId || currentUser.id;
+    if (ownerId) {
+      StorageService.updateNomineeRequestForOwner(ownerId, {
+        status: 'Access Approved',
+        approvedDate: 'Today',
+      });
+      if (activeRole === 'nominee') {
+        const ownerData = StorageService.loadProfileData(ownerId);
+        if (ownerData && ownerData.assets) {
+          setAssets(ownerData.assets);
+          setClaims(ownerData.claims || []);
+        }
+      }
+    }
     addActivity('Approved nominee access request', 'alert');
   };
 
@@ -613,6 +797,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev,
       status: 'Access Rejected',
     }));
+    const ownerId = activeAssetOwnerId || currentUser.id;
+    if (ownerId) {
+      StorageService.updateNomineeRequestForOwner(ownerId, {
+        status: 'Access Rejected',
+      });
+      if (activeRole === 'nominee') {
+        setAssets([]);
+        setClaims([]);
+      }
+    }
     addActivity('Rejected nominee access request', 'alert');
   };
 
@@ -799,41 +993,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status,
       approvedDate: status === 'Access Approved' ? 'Today' : prev.approvedDate,
     }));
+    const ownerId = activeAssetOwnerId || currentUser.id;
+    if (ownerId) {
+      StorageService.updateNomineeRequestForOwner(ownerId, {
+        status,
+        approvedDate: status === 'Access Approved' ? 'Today' : undefined,
+      });
+      if (status === 'Access Approved' && activeRole === 'nominee') {
+        const ownerData = StorageService.loadProfileData(ownerId);
+        if (ownerData && ownerData.assets) {
+          setAssets(ownerData.assets);
+          setClaims(ownerData.claims || []);
+        }
+      } else if (status !== 'Access Approved' && activeRole === 'nominee') {
+        setAssets([]);
+        setClaims([]);
+      }
+    }
     addActivity(`Nominee access status updated: ${status}`, 'alert');
   };
 
   const uploadDeathCertificate = (details: any) => {
+    const ownerId = activeAssetOwnerId || currentUser.id;
+    const targetName = nomineeRequest.targetUserName || currentUser.name;
+    const certDetails = {
+      deceasedName: details.deceasedName || targetName,
+      dateOfDeath: details.dateOfDeath || 'Jan 15, 2025',
+      registrationNumber: details.regNo || 'MCD/DTH/2025/90412',
+      issuingAuthority: details.authority || 'Municipal Corporation of Delhi',
+      verified: true,
+    };
     setNomineeRequest((prev) => ({
       ...prev,
       deathCertificateUploaded: true,
-      deathCertificateDetails: {
-        deceasedName: details.deceasedName || currentUser.name,
-        dateOfDeath: details.dateOfDeath || 'Jan 15, 2025',
-        registrationNumber: details.regNo || 'MCD/DTH/2025/90412',
-        issuingAuthority: details.authority || 'Municipal Corporation of Delhi',
-        verified: true,
-      },
+      deathCertificateDetails: certDetails,
       status: 'Verification Pending',
     }));
+    if (ownerId) {
+      StorageService.updateNomineeRequestForOwner(ownerId, {
+        deathCertificateUploaded: true,
+        deathCertificateDetails: certDetails,
+        status: 'Verification Pending',
+      });
+    }
     addActivity('Uploaded & verified official death certificate (Simulated OCR)', 'verification');
   };
 
   const uploadRelationshipProof = (details: any) => {
+    const ownerId = activeAssetOwnerId || currentUser.id;
+    const relDetails = {
+      documentType: details.documentType || 'Marriage Certificate',
+      verified: true,
+    };
     setNomineeRequest((prev) => ({
       ...prev,
       relationshipProofUploaded: true,
-      relationshipProofDetails: {
-        documentType: details.documentType || 'Marriage Certificate',
-        verified: true,
-      },
+      relationshipProofDetails: relDetails,
     }));
+    if (ownerId) {
+      StorageService.updateNomineeRequestForOwner(ownerId, {
+        relationshipProofUploaded: true,
+        relationshipProofDetails: relDetails,
+      });
+    }
     addActivity('Uploaded relationship verification proof', 'verification');
   };
 
   const simulateBiometricAuth = async (): Promise<boolean> => {
     return new Promise((resolve) => {
       setTimeout(() => {
+        const ownerId = activeAssetOwnerId || currentUser.id;
         setNomineeRequest((prev) => ({ ...prev, biometricVerified: true }));
+        if (ownerId) {
+          StorageService.updateNomineeRequestForOwner(ownerId, { biometricVerified: true });
+        }
         addActivity('Biometric passkey verified successfully', 'verification');
         resolve(true);
       }, 1000);
@@ -1082,6 +1315,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         analyzeFootprintAI,
         isAnalyzingFootprint,
         nomineeRequest,
+        nomineeAccessError,
+        clearNomineeAccessError,
+        activeAssetOwnerId,
         updateNomineeStatus,
         uploadDeathCertificate,
         uploadRelationshipProof,

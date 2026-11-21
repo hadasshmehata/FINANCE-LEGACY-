@@ -510,4 +510,140 @@ export const StorageService = {
       console.warn('Failed to delete registered account', e);
     }
   },
+
+  /**
+   * Find a valid nominee relationship between a nominee and an asset owner.
+   * Scans real registered accounts first, then demo profiles if explicitly targeted.
+   */
+  findNomineeRelationship(
+    nomineeEmail: string,
+    targetOwnerEmail?: string
+  ): {
+    ownerAccount: { id: string; name: string; email: string; isDemoUser?: boolean };
+    ownerData: UserProfileData;
+    nomineeMember: {
+      name: string;
+      email: string;
+      relationship: string;
+      permittedCategories?: any[];
+      status?: any;
+    };
+  } | null {
+    if (!nomineeEmail) return null;
+    const cleanNomEmail = nomineeEmail.trim().toLowerCase();
+    const cleanTarget = (targetOwnerEmail || '').trim().toLowerCase();
+
+    // 1. Scan all real registered accounts
+    const registered = StorageService.getRegisteredAccounts();
+    for (const acc of registered) {
+      if (cleanTarget) {
+        const matchEmail = acc.email.toLowerCase() === cleanTarget;
+        const matchName = acc.name.toLowerCase() === cleanTarget;
+        if (!matchEmail && !matchName) {
+          continue;
+        }
+      }
+      const ownerData = StorageService.loadProfileData(acc.id);
+      if (!ownerData) continue;
+
+      // Check if designated in familyMembers
+      const matchedMember = (ownerData.familyMembers || []).find(
+        (m) => m.isNominee && m.email && m.email.toLowerCase().trim() === cleanNomEmail
+      );
+      if (matchedMember) {
+        return {
+          ownerAccount: { id: acc.id, name: acc.name, email: acc.email, isDemoUser: false },
+          ownerData,
+          nomineeMember: {
+            name: matchedMember.name,
+            email: matchedMember.email,
+            relationship: matchedMember.relationship,
+            permittedCategories: matchedMember.accessPermissions,
+            status: matchedMember.verificationStatus,
+          },
+        };
+      }
+
+      // Check if designated directly in nomineeRequest
+      if (
+        ownerData.nomineeRequest &&
+        ownerData.nomineeRequest.nomineeEmail &&
+        ownerData.nomineeRequest.nomineeEmail.toLowerCase().trim() === cleanNomEmail
+      ) {
+        return {
+          ownerAccount: { id: acc.id, name: acc.name, email: acc.email, isDemoUser: false },
+          ownerData,
+          nomineeMember: {
+            name: ownerData.nomineeRequest.nomineeName,
+            email: ownerData.nomineeRequest.nomineeEmail,
+            relationship: ownerData.nomineeRequest.relationship,
+            permittedCategories: ownerData.nomineeRequest.permittedAssetCategories,
+            status: ownerData.nomineeRequest.status,
+          },
+        };
+      }
+    }
+
+    // 2. Check demo profiles ONLY if explicitly targeted
+    if (cleanTarget) {
+      const demoKeys: Array<keyof typeof demoProfilesMap> = ['ramesh', 'priya', 'arjun', 'meera'];
+      for (const dKey of demoKeys) {
+        const demo = demoProfilesMap[dKey];
+        if (
+          demo.profile.email.toLowerCase() === cleanTarget ||
+          demo.profile.name.toLowerCase() === cleanTarget ||
+          cleanTarget.includes(dKey)
+        ) {
+          const ownerData = StorageService.loadProfileData(`demo_${dKey}`, dKey);
+          if (
+            (ownerData.nomineeRequest.nomineeEmail &&
+              ownerData.nomineeRequest.nomineeEmail.toLowerCase() === cleanNomEmail) ||
+            cleanNomEmail.includes(dKey) ||
+            cleanNomEmail.includes('priya')
+          ) {
+            return {
+              ownerAccount: { id: `demo_${dKey}`, name: demo.profile.name, email: demo.profile.email, isDemoUser: true },
+              ownerData,
+              nomineeMember: {
+                name: ownerData.nomineeRequest.nomineeName,
+                email: cleanNomEmail,
+                relationship: ownerData.nomineeRequest.relationship,
+                permittedCategories: ownerData.nomineeRequest.permittedAssetCategories,
+                status: ownerData.nomineeRequest.status,
+              },
+            };
+          }
+        }
+      }
+    }
+
+    return null;
+  },
+
+  /**
+   * Update nomineeRequest specifically inside an asset owner's stored profile
+   */
+  updateNomineeRequestForOwner(ownerId: string, updates: Partial<NomineeRequest>): void {
+    if (!ownerId) return;
+    try {
+      const ownerData = StorageService.loadProfileData(ownerId);
+      if (ownerData) {
+        ownerData.nomineeRequest = {
+          ...ownerData.nomineeRequest,
+          ...updates,
+        };
+        // Also update matching family member verificationStatus if applicable
+        if (updates.status && ownerData.familyMembers) {
+          ownerData.familyMembers = ownerData.familyMembers.map((m) =>
+            m.isNominee || (updates.nomineeEmail && m.email.toLowerCase() === updates.nomineeEmail.toLowerCase())
+              ? { ...m, verificationStatus: updates.status! }
+              : m
+          );
+        }
+        StorageService.saveProfileData(ownerId, ownerData);
+      }
+    } catch (e) {
+      console.warn(`Failed to update nominee request for owner ${ownerId}`, e);
+    }
+  },
 };

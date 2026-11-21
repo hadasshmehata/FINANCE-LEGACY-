@@ -32,6 +32,7 @@ export const AuthPage: React.FC = () => {
     loginRegisteredUser,
     deleteRegisteredUser,
     nomineeRequest,
+    nomineeAccessError,
     uploadDeathCertificate,
     uploadRelationshipProof,
     simulateBiometricAuth,
@@ -487,6 +488,14 @@ export const AuthPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/* NOMINEE ACCESS ERROR BANNER */}
+                {role === 'nominee' && nomineeAccessError && (
+                  <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/40 text-red-300 text-xs flex items-start gap-2.5 animate-in fade-in">
+                    <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">{nomineeAccessError}</span>
+                  </div>
+                )}
+
                 {/* ADDITIONAL NOMINEE FIELDS (Requirement 1B & 7) */}
                 {role === 'nominee' && (
                   <div className="p-3 rounded-2xl bg-[#061525] border border-cyan-500/40 space-y-2.5 animate-in fade-in">
@@ -498,17 +507,67 @@ export const AuthPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] text-slate-300 mb-1 font-semibold">
-                        Target Asset Owner Email
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] text-slate-300 font-semibold">
+                          Target Asset Owner Email
+                        </label>
+                        {registeredUsers && registeredUsers.length > 0 && (
+                          <span className="text-[9px] text-emerald-400 font-mono">
+                            {registeredUsers.length} Registered Owner{registeredUsers.length > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Quick-select registered owners */}
+                      {registeredUsers && registeredUsers.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {registeredUsers.map((u) => (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => setTargetOwnerEmail(u.email)}
+                              className={`px-2 py-0.5 rounded text-[10px] border transition-all ${
+                                targetOwnerEmail.toLowerCase() === u.email.toLowerCase()
+                                  ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold'
+                                  : 'bg-[#10283D] border-[#1E3A5F] text-slate-400 hover:text-white'
+                              }`}
+                            >
+                              {u.name.split(' ')[0]} ({u.email})
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
                       <input
                         type="email"
                         required
                         value={targetOwnerEmail}
                         onChange={(e) => setTargetOwnerEmail(e.target.value)}
-                        placeholder="ramesh.kumar@email.com"
+                        placeholder="e.g. vikram.malhotra@email.com"
                         className="w-full bg-[#10283D] border border-[#1E3A5F] rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-cyan-400"
                       />
+
+                      {/* Dynamic Target Feedback */}
+                      {targetOwnerEmail && (
+                        <div className="text-[10px] mt-1.5">
+                          {registeredUsers && registeredUsers.some((u) => u.email.toLowerCase() === targetOwnerEmail.trim().toLowerCase()) ? (
+                            <span className="text-emerald-400 flex items-center gap-1 font-semibold">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                              <span>Registered Asset Owner verified: {registeredUsers.find((u) => u.email.toLowerCase() === targetOwnerEmail.trim().toLowerCase())?.name}</span>
+                            </span>
+                          ) : ['ramesh', 'priya', 'arjun', 'meera'].some((d) => targetOwnerEmail.toLowerCase().includes(d)) ? (
+                            <span className="text-cyan-400 flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+                              <span>Demo Profile targeted</span>
+                            </span>
+                          ) : (
+                            <span className="text-amber-400 flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                              <span>No registered asset owner with this email yet</span>
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Death certificate upload */}
